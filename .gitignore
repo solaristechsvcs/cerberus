@@ -1,5 +1,6 @@
 node_modules/
 dist/
+config.local.js
 .env
 .env.*
 !.env.example
