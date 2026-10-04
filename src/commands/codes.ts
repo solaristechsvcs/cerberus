@@ -1,6 +1,6 @@
 import { EmbedBuilder, ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
 
-type NukeCodes = { alpha: string; bravo: string; charlie: string };
+type NukeCodes = { alpha: string; bravo: string; charlie: string; resetAt: number };
 
 const NUKACRYPT_URL = "https://api.nukacrypt.com/api/codes";
 
@@ -14,10 +14,21 @@ function extractCodes(value: unknown): NukeCodes | null {
   const data = value as Record<string, unknown>;
   if (!isCode(data.ALPHA) || !isCode(data.BRAVO) || !isCode(data.CHARLIE)) return null;
 
+  let resetAt = NaN;
+  if (typeof data.date === "string") {
+    const start = Date.parse(data.date.trim().replace(" ", "T"));
+    if (Number.isFinite(start)) resetAt = start + 7 * 24 * 60 * 60 * 1000;
+  }
+  if (!Number.isFinite(resetAt) && typeof data.since_epoch === "number") {
+    resetAt = (data.since_epoch + 7 * 24 * 60 * 60) * 1000;
+  }
+  if (!Number.isFinite(resetAt)) return null;
+
   return {
     alpha: data.ALPHA.trim(),
     bravo: data.BRAVO.trim(),
-    charlie: data.CHARLIE.trim()
+    charlie: data.CHARLIE.trim(),
+    resetAt
   };
 }
 
@@ -58,7 +69,7 @@ export async function handleCodeCommand(i: ChatInputCommandInteraction): Promise
 
     const embed = new EmbedBuilder()
       .setTitle("☢️ Fallout 76 Nuclear Launch Codes")
-      .setDescription("Current launch codes for the three Appalachian nuclear silos.")
+      .setDescription("Current launch codes for the three Appalachian nuclear silos.\n\n**Code reset:** <t:" + Math.floor(codes.resetAt / 1000) + ":R>\n**Reset date:** <t:" + Math.floor(codes.resetAt / 1000) + ":F>")
       .addFields(
         { name: "Alpha", value: fence + codes.alpha + fence, inline: true },
         { name: "Bravo", value: fence + codes.bravo + fence, inline: true },
