@@ -13,5 +13,11 @@ module.exports = {
     password: "YOUR_SQL_PASSWORD",
     ssl: false
   },
+  dashboard: {
+    enabled: true,
+    port: 3000,
+    publicUrl: "https://dashboard.example.com",
+    clientSecret: "CHANGE_ME"
+  },
   logLevel: "info"
 };
