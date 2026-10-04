@@ -9,8 +9,11 @@ import { handleModerationCommand } from "./commands/moderation";
 import { handleNoteCommand, noteCommands } from "./commands/notes";
 import { moderationCommands } from "./commands/moderation";
 import { startDashboard } from "./dashboard";
+import { registerDiscordLogging } from "./logging/discordLogger";
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildVoiceStates] });
+
+registerDiscordLogging(client);
 
 const commandData = [...moderationCommands, ...noteCommands].map(command => command.toJSON());
 
