@@ -10,6 +10,27 @@ export const LOG_EVENTS = [
 
 export type LogEvent = typeof LOG_EVENTS[number];
 
+type CachedMessage = { content: string; authorId: string; channelId: string; createdAt: number };
+const recentMessages = new Map<string, CachedMessage>();
+const MAX_CACHED_MESSAGES = 10000;
+const MESSAGE_CACHE_TTL = 60 * 60 * 1000;
+
+function cacheMessage(message: Message): void {
+  if (!message.guild) return;
+  recentMessages.set(message.id, { content: message.content, authorId: message.author.id, channelId: message.channelId, createdAt: Date.now() });
+  if (recentMessages.size > MAX_CACHED_MESSAGES) {
+    const oldest = recentMessages.keys().next().value;
+    if (oldest) recentMessages.delete(oldest);
+  }
+}
+
+function cachedMessage(message: Message | PartialMessage): CachedMessage | undefined {
+  const cached = recentMessages.get(message.id);
+  if (!cached) return undefined;
+  if (Date.now() - cached.createdAt > MESSAGE_CACHE_TTL) { recentMessages.delete(message.id); return undefined; }
+  return cached;
+}
+
 export const LOG_EVENT_LABELS: Record<LogEvent, string> = {
   moderation:"Moderation commands", messageDelete:"Message deleted", messageBulkDelete:"Messages bulk deleted",
   memberJoin:"Member joined", memberLeave:"Member left", memberUpdate:"Member updated", banAdd:"Member banned",
@@ -35,12 +56,17 @@ export async function sendLog(guild: Guild, event: LogEvent, title: string, desc
 
 export async function logMessageDelete(message: Message | PartialMessage): Promise<void> {
   if (!message.guild) return;
+  const cached = cachedMessage(message);
+  const content = message.content || cached?.content || "(content unavailable — message was not received by the bot before deletion)";
+  const authorId = message.author?.id ?? cached?.authorId ?? "unknown";
+  const channelId = message.channelId || cached?.channelId;
   await sendLog(message.guild, "messageDelete", "Message Deleted",
-    "**Channel:** <#" + message.channelId + ">\n**Author:** <@" + (message.author?.id ?? "unknown") + ">\n**Content:** " +
-    (message.content ? message.content.slice(0, 3500) : "(content unavailable)"));
+    "**Channel:** <#" + channelId + ">\n**Author:** <@" + authorId + ">\n**Content:** " + content.slice(0, 3500));
+  recentMessages.delete(message.id);
 }
 
 export function registerDiscordLogging(client: Client): void {
+  client.on("messageCreate", message => cacheMessage(message));
   client.on("messageDelete", m => void logMessageDelete(m));
   client.on("messageDeleteBulk", messages => {
     const guild = messages.first()?.guild;
