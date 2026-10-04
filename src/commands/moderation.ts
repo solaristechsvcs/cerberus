@@ -1,6 +1,7 @@
 import { ChatInputCommandInteraction, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
 import { Warning } from "../database/models/Warning";
 import { ModerationCase, ModerationAction } from "../database/models/ModerationCase";
+import { GuildSettings } from "../database/models/GuildSettings";
 import { sendLog } from "../logging/discordLogger";
 
 const reason = (o: any) => o.setName("reason").setDescription("Reason").setMaxLength(500);
@@ -115,7 +116,7 @@ export async function handleModerationCommand(i: ChatInputCommandInteraction): P
     }
     case "modlog": {
       const channel = i.options.getChannel("channel", true);
-      if (!channel.isTextBased()) return void await reply(i, "Choose a text-based channel.", true);
+      if (!("isTextBased" in channel) || !channel.isTextBased()) return void await reply(i, "Choose a text-based channel.", true);
       const [settings] = await GuildSettings.findOrCreate({ where: { guildId: i.guild.id } });
       settings.modLogChannelId = channel.id;
       await settings.save();
