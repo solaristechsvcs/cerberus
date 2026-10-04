@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { config } from "../config";
 import { ModerationCase } from "../database/models/ModerationCase";
 import { UserNote } from "../database/models/UserNote";
+import { Client } from "discord.js";
 
 type DiscordGuild = { id: string; name: string; permissions: string; owner?: boolean };
 type Session = { userId: string; username: string; guilds: DiscordGuild[]; expiresAt: number };
@@ -41,7 +42,8 @@ function requireSession(req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
-function isAdmin(s: Session, guildId: string): boolean {
+function isAdmin(s: Session, guildId: string, client: Client): boolean {
+  if (!client.guilds.cache.has(guildId)) return false;
   const guild = s.guilds.find(g => g.id === guildId);
   if (!guild) return false;
   return guild.owner === true || (BigInt(guild.permissions) & ADMIN) === ADMIN;
@@ -50,7 +52,7 @@ function isAdmin(s: Session, guildId: string): boolean {
 function requireGuildAdmin(req: Request, res: Response, next: NextFunction): void {
   const s = session(req);
   const guildId = req.params.guildId;
-  if (!s || !isAdmin(s, guildId)) { res.status(403).json({ error: "Administrator access required." }); return; }
+  if (!s || !isAdmin(s, guildId, dashboardClient)) { res.status(403).json({ error: "Administrator access required." }); return; }
   next();
 }
 
@@ -64,7 +66,10 @@ async function load(){try{const d=await api('/api/guilds');if(!d.guilds.length){
 async function loadLogs(){if(!state.guild)return;const el=document.getElementById('userId');const user=el?el.value.trim():'';try{const d=await api('/api/guild/'+state.guild+'/logs'+(user?'?userId='+encodeURIComponent(user):''));document.getElementById('stats').innerHTML='<div class="cards"><div class="panel card"><span class="muted">Moderation cases</span><strong>'+d.cases.length+'</strong></div><div class="panel card"><span class="muted">Staff notes</span><strong>'+d.notes.length+'</strong></div><div class="panel card"><span class="muted">Viewing</span><strong>'+esc(user||'All users')+'</strong></div></div>';let html='<h3>Moderation Cases</h3>';html+=d.cases.length?d.cases.map(function(c){return '<div class="row"><span class="badge">Case #'+c.id+'</span><span class="badge">'+esc(c.action)+'</span><b>User:</b> '+esc(c.userId)+' <span class="muted">by '+esc(c.moderatorId)+' • '+new Date(c.createdAt).toLocaleString()+'</span><div>'+esc(c.reason)+'</div></div>'}).join(''):'<div class="empty">No moderation cases.</div>';html+='<h3>Staff Notes</h3>';html+=d.notes.length?d.notes.map(function(n){return '<div class="row"><span class="badge">Note #'+n.id+'</span><b>User:</b> '+esc(n.userId)+' <span class="muted">by '+esc(n.authorId)+' • '+new Date(n.createdAt).toLocaleString()+'</span><div class="note">'+esc(n.note)+'</div></div>'}).join(''):'<div class="empty">No staff notes.</div>';document.getElementById('logs').innerHTML=html}catch(e){document.getElementById('logs').innerHTML='<div class="empty">'+esc(e.message)+'</div>'}}
 async function logout(){await fetch('/logout',{method:'POST'});location.href='/'}load();
 </script></body></html>`;
-export function startDashboard(): void {
+let dashboardClient: Client;
+
+export function startDashboard(client: Client): void {
+  dashboardClient = client;
   if (!config.dashboard.enabled) return;
   if (!config.dashboard.clientSecret || config.dashboard.clientSecret === "CHANGE_ME") { console.warn("Dashboard disabled: set dashboard.clientSecret in config.js."); return; }
   const app = express();
@@ -72,7 +77,7 @@ export function startDashboard(): void {
   app.get("/login", (_req,res) => { const state=crypto.randomBytes(24).toString("hex"); const redirect=`${config.dashboard.publicUrl.replace(/\/$/,"")}/oauth/callback`; const url=new URL("https://discord.com/oauth2/authorize"); url.searchParams.set("client_id",config.discord.clientId); url.searchParams.set("response_type","code"); url.searchParams.set("redirect_uri",redirect); url.searchParams.set("scope","identify guilds"); url.searchParams.set("state",state); res.setHeader("Set-Cookie",`cerberus_oauth_state=${state}; HttpOnly; Secure; SameSite=Lax; Path=/`); res.redirect(url.toString()); });
   app.get("/oauth/callback", async (req,res) => { try { const code=String(req.query.code??""); const expected=cookieValue(req,"cerberus_oauth_state"); if(!code||!expected||expected!==String(req.query.state??"")) return res.status(400).send("Invalid OAuth state."); const token=await discordToken(code); const user=await discordGet<{id:string;username:string}>("/users/@me",token.access_token); const guilds=await discordGet<DiscordGuild[]>("/users/@me/guilds",token.access_token); const sid=crypto.randomBytes(32).toString("hex"); sessions.set(sid,{userId:user.id,username:user.username,guilds:guilds.filter(g=>g.owner||(BigInt(g.permissions)&ADMIN)===ADMIN),expiresAt:Date.now()+8*60*60*1000}); res.setHeader("Set-Cookie",`cerberus_session=${sid}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=28800`); res.redirect("/"); } catch(e) { res.status(500).send("Discord login failed."); } });
   app.post("/logout",(req,res)=>{const id=cookieValue(req,"cerberus_session");if(id)sessions.delete(id);res.setHeader("Set-Cookie","cerberus_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0");res.status(204).end();});
-  app.get("/api/guilds",requireSession,(req,res)=>{const s=session(req)!;res.json({guilds:s.guilds})});
+  app.get("/api/guilds",requireSession,(req,res)=>{const s=session(req)!;res.json({guilds:s.guilds.filter(g=>client.guilds.cache.has(g.id))})});
   app.get("/api/guild/:guildId/logs",requireGuildAdmin,async(req,res)=>{try{const where:any={guildId:req.params.guildId};if(req.query.userId)where.userId=String(req.query.userId);const [cases,notes]=await Promise.all([ModerationCase.findAll({where,order:[["createdAt","DESC"]],limit:100}),UserNote.findAll({where,order:[["createdAt","DESC"]],limit:100})]);res.json({cases,notes});}catch(e){res.status(500).json({error:"Database query failed."})}});
   app.listen(config.dashboard.port,()=>console.log(`Cerberus dashboard listening on port ${config.dashboard.port}`));
 }

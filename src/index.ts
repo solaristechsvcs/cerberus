@@ -34,7 +34,7 @@ async function shutdown(signal: string): Promise<void> {
 
 async function main(): Promise<void> {
   await connectDatabase();
-  startDashboard();
+  startDashboard(client);
   await client.login(config.discord.token);
 }
 
