@@ -1,9 +1,15 @@
-import { DataTypes, InferAttributes, InferCreationAttributes, Model } from "sequelize";
+import { CreationOptional, DataTypes, InferAttributes, InferCreationAttributes, Model } from "sequelize";
 import { sequelize } from "../index";
+
 export class Warning extends Model<InferAttributes<Warning>, InferCreationAttributes<Warning>> {
-  declare id: number; declare guildId: string; declare userId: string;
-  declare moderatorId: string; declare reason: string; declare createdAt: Date;
+  declare id: CreationOptional<number>;
+  declare guildId: string;
+  declare userId: string;
+  declare moderatorId: string;
+  declare reason: string;
+  declare createdAt: CreationOptional<Date>;
 }
+
 Warning.init({
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
   guildId: { type: DataTypes.STRING(32), allowNull: false },
