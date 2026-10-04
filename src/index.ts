@@ -10,6 +10,7 @@ import { handleNoteCommand, noteCommands } from "./commands/notes";
 import { moderationCommands } from "./commands/moderation";
 import { startDashboard } from "./dashboard";
 import { registerDiscordLogging } from "./logging/discordLogger";
+import { runDatabaseMigrations } from "./database/migrations";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions] });
 
@@ -69,6 +70,7 @@ async function shutdown(signal: string): Promise<void> {
 
 async function main(): Promise<void> {
   await connectDatabase();
+  await runDatabaseMigrations();
   startDashboard(client);
   await client.login(config.discord.token);
 }
