@@ -4,6 +4,8 @@ import { config } from "../config";
 import { ModerationCase } from "../database/models/ModerationCase";
 import { UserNote } from "../database/models/UserNote";
 import { Client } from "discord.js";
+import { LOG_EVENTS, LOG_EVENT_LABELS } from "../logging/discordLogger";
+import { GuildSettings } from "../database/models/GuildSettings";
 
 type DiscordGuild = { id: string; name: string; permissions: string; owner?: boolean };
 type Session = { userId: string; username: string; guilds: DiscordGuild[]; expiresAt: number };
@@ -79,8 +81,23 @@ const state={guild:null};
 const esc=function(s){return String(s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})};
 async function api(path){const r=await fetch(path);if(!r.ok){let d={};try{d=await r.json()}catch{}throw new Error(d.error||'Request failed')}return r.json()}
 function shell(guilds){const items=guilds.map(function(g){return '<div class="guild '+(g.id===state.guild?'active':'')+'" onclick="selectGuild(\\''+g.id+'\\')">'+esc(g.name)+'</div>'}).join('');document.getElementById('app').innerHTML='<div class="grid"><aside class="panel"><h3>Servers</h3>'+items+'</aside><section><div class="panel"><div class="toolbar"><input id="userId" placeholder="Filter by Discord User ID"><button onclick="loadLogs()">Search</button><button onclick="clearFilter()">All users</button></div><div id="stats"></div></div><div class="panel"><h2>Moderation & Staff Notes</h2><div id="logs"></div></div></section></div>'}
-function selectGuild(id){state.guild=id;load()}function clearFilter(){document.getElementById('userId').value='';loadLogs()}
-async function load(){try{const d=await api('/api/guilds');if(!d.guilds.length){document.getElementById('app').innerHTML='<div class="panel">No Discord servers where you have Administrator access were found.</div>';return}if(!state.guild)state.guild=d.guilds[0].id;shell(d.guilds);await loadLogs()}catch(e){document.getElementById('app').innerHTML='<div class="panel">'+esc(e.message)+'</div>'}}
+function selectGuild(id){state.guild=id;load()}
+async function loadLogConfig(){
+  const box=document.getElementById('logConfig'); if(!box)return;
+  try{
+    const data=await api('/api/guild/'+state.guild+'/log-config');
+    const channels=await api('/api/guild/'+state.guild+'/channels');
+    const options='<option value="">Disabled</option>'+channels.channels.map(function(ch){return '<option value="'+ch.id+'">#'+esc(ch.name)+'</option>'}).join('');
+    box.innerHTML=data.events.map(function(ev){return '<div style="display:grid;grid-template-columns:1fr 260px;gap:12px;align-items:center;margin:8px 0"><label>'+esc(ev.label)+'</label><select data-log-event="'+ev.key+'">'+options+'</select></div>'}).join('')+'<button onclick="saveLogConfig()">Save Logging Configuration</button><span id="logSave" class="muted" style="margin-left:10px"></span>';
+    data.events.forEach(function(ev){const s=document.querySelector('[data-log-event="'+ev.key+'"]');if(s)s.value=(data.channels||{})[ev.key]||''});
+  }catch(e){box.innerHTML='<div class="empty">'+esc(e.message)+'</div>'}
+}
+async function saveLogConfig(){
+  const channels={};document.querySelectorAll('[data-log-event]').forEach(function(s){channels[s.dataset.logEvent]=s.value});
+  const out=document.getElementById('logSave');
+  try{await fetch('/api/guild/'+state.guild+'/log-config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({channels})});out.textContent='Saved';setTimeout(function(){out.textContent=''},2000)}catch(e){out.textContent=e.message}
+}function clearFilter(){document.getElementById('userId').value='';loadLogs()}
+async function load(){try{const d=await api('/api/guilds');if(!d.guilds.length){document.getElementById('app').innerHTML='<div class="panel">No Discord servers where you have Administrator access were found.</div>';return}if(!state.guild)state.guild=d.guilds[0].id;shell(d.guilds);await loadLogConfig();await loadLogs()}catch(e){document.getElementById('app').innerHTML='<div class="panel">'+esc(e.message)+'</div>'}}
 async function loadLogs(){if(!state.guild)return;const el=document.getElementById('userId');const user=el?el.value.trim():'';try{const d=await api('/api/guild/'+state.guild+'/logs'+(user?'?userId='+encodeURIComponent(user):''));document.getElementById('stats').innerHTML='<div class="cards"><div class="panel card"><span class="muted">Moderation cases</span><strong>'+d.cases.length+'</strong></div><div class="panel card"><span class="muted">Staff notes</span><strong>'+d.notes.length+'</strong></div><div class="panel card"><span class="muted">Viewing</span><strong>'+esc(user||'All users')+'</strong></div></div>';let html='<h3>Moderation Cases</h3>';html+=d.cases.length?d.cases.map(function(c){return '<div class="row"><span class="badge">Case #'+c.id+'</span><span class="badge">'+esc(c.action)+'</span><b>User:</b> '+esc(c.userId)+' <span class="muted">by '+esc(c.moderatorId)+' • '+new Date(c.createdAt).toLocaleString()+'</span><div>'+esc(c.reason)+'</div></div>'}).join(''):'<div class="empty">No moderation cases.</div>';html+='<h3>Staff Notes</h3>';html+=d.notes.length?d.notes.map(function(n){return '<div class="row"><span class="badge">Note #'+n.id+'</span><b>User:</b> '+esc(n.userId)+' <span class="muted">by '+esc(n.authorId)+' • '+new Date(n.createdAt).toLocaleString()+'</span><div class="note">'+esc(n.note)+'</div></div>'}).join(''):'<div class="empty">No staff notes.</div>';document.getElementById('logs').innerHTML=html}catch(e){document.getElementById('logs').innerHTML='<div class="empty">'+esc(e.message)+'</div>'}}
 async function logout(){await fetch('/logout',{method:'POST'});location.href='/'}load();
 </script></body></html>`;
@@ -96,6 +113,36 @@ export function startDashboard(client: Client): void {
   app.get("/oauth/callback", async (req,res) => { try { const code=String(req.query.code??""); const expected=cookieValue(req,"cerberus_oauth_state"); if(!code||!expected||expected!==String(req.query.state??"")) return res.status(400).send("Invalid OAuth state."); const token=await discordToken(code); const user=await discordGet<{id:string;username:string}>("/users/@me",token.access_token); const guilds=await discordGet<DiscordGuild[]>("/users/@me/guilds",token.access_token); const sid=crypto.randomBytes(32).toString("hex"); sessions.set(sid,{userId:user.id,username:user.username,guilds:guilds.filter(g=>g.owner||(BigInt(g.permissions)&ADMIN)===ADMIN),expiresAt:Date.now()+8*60*60*1000}); res.setHeader("Set-Cookie",`cerberus_session=${sid}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=28800`); res.redirect("/"); } catch(e) { res.status(500).send("Discord login failed."); } });
   app.post("/logout",(req,res)=>{const id=cookieValue(req,"cerberus_session");if(id)sessions.delete(id);res.setHeader("Set-Cookie","cerberus_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0");res.status(204).end();});
   app.get("/api/guilds",requireSession,(req,res)=>{const s=session(req)!;res.json({guilds:s.guilds.filter(g=>client.guilds.cache.has(g.id))})});
+  app.get("/api/guild/:guildId/channels",requireGuildAdmin,async(req,res)=>{
+    const guild=client.guilds.cache.get(req.params.guildId);
+    if(!guild)return res.status(404).json({error:"Server not found."});
+    const channels=[...guild.channels.cache.values()].filter(c=>c.isTextBased() && "send" in c).map(c=>({id:c.id,name:c.name,type:c.type}));
+    res.json({channels});
+  });
+  app.get("/api/guild/:guildId/log-config",requireGuildAdmin,async(req,res)=>{
+    const [settings]=await GuildSettings.findOrCreate({where:{guildId:req.params.guildId}});
+    res.json({channels:settings.eventLogChannels??{},events:LOG_EVENTS.map(event=>({key:event,label:LOG_EVENT_LABELS[event]}))});
+  });
+  app.put("/api/guild/:guildId/log-config",requireGuildAdmin,async(req,res)=>{
+    try{
+      const guild=client.guilds.cache.get(req.params.guildId);
+      if(!guild)return res.status(404).json({error:"Server not found."});
+      const incoming=(req.body?.channels??{}) as Record<string,unknown>;
+      const channels:any={};
+      for(const event of LOG_EVENTS){
+        const value=incoming[event];
+        if(value==null||value===""){channels[event]=null;continue;}
+        const channel=guild.channels.cache.get(String(value));
+        if(!channel||!channel.isTextBased()||!("send" in channel))return res.status(400).json({error:"Invalid channel for "+LOG_EVENT_LABELS[event]+"."});
+        channels[event]=channel.id;
+      }
+      const [settings]=await GuildSettings.findOrCreate({where:{guildId:guild.id}});
+      settings.eventLogChannels=channels;
+      if(channels.moderation)settings.modLogChannelId=channels.moderation;
+      await settings.save();
+      res.json({ok:true,channels});
+    }catch(e){res.status(500).json({error:"Failed to save logging configuration."});}
+  });
   app.get("/api/guild/:guildId/logs",requireGuildAdmin,async(req,res)=>{try{const where:any={guildId:req.params.guildId};if(req.query.userId)where.userId=String(req.query.userId);const [cases,notes]=await Promise.all([ModerationCase.findAll({where,order:[["createdAt","DESC"]],limit:100}),UserNote.findAll({where,order:[["createdAt","DESC"]],limit:100})]);res.json({cases,notes});}catch(e){res.status(500).json({error:"Database query failed."})}});
   app.listen(config.dashboard.port,()=>console.log(`Cerberus dashboard listening on port ${config.dashboard.port}`));
 }
