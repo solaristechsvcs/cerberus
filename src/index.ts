@@ -7,6 +7,7 @@ import "./database/models/GuildSettings";
 import "./database/models/UserNote";
 import { handleModerationCommand } from "./commands/moderation";
 import { handleNoteCommand } from "./commands/notes";
+import { startDashboard } from "./dashboard";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
 
@@ -33,6 +34,7 @@ async function shutdown(signal: string): Promise<void> {
 
 async function main(): Promise<void> {
   await connectDatabase();
+  startDashboard();
   await client.login(config.discord.token);
 }
 
