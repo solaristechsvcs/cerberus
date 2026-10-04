@@ -2,6 +2,8 @@ import { Client, Events, GatewayIntentBits } from "discord.js";
 import { config } from "./config";
 import { connectDatabase } from "./database";
 import "./database/models/Warning";
+import "./database/models/ModerationCase";
+import "./database/models/GuildSettings";
 import { handleModerationCommand } from "./commands/moderation";
 
 const client = new Client({
