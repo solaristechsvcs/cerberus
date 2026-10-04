@@ -1,8 +1,7 @@
 module.exports = {
   discord: {
     token: "CHANGE_ME",
-    clientId: "CHANGE_ME",
-    guildId: ""
+    clientId: "CHANGE_ME"
   },
   database: {
     // Supported: "postgres" or "mysql"
