@@ -1,7 +1,6 @@
-import { ChatInputCommandInteraction, EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
+import { ChatInputCommandInteraction, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
 import { Warning } from "../database/models/Warning";
 import { ModerationCase, ModerationAction } from "../database/models/ModerationCase";
-import { GuildSettings } from "../database/models/GuildSettings";
 import { sendLog } from "../logging/discordLogger";
 
 const reason = (o: any) => o.setName("reason").setDescription("Reason").setMaxLength(500);
@@ -32,12 +31,8 @@ async function makeCase(guildId: string, userId: string, moderatorId: string, ac
 }
 
 async function logCase(i: ChatInputCommandInteraction, c: ModerationCase, tag: string) {
-  const settings = await GuildSettings.findByPk(i.guild!.id);
-  if (!settings?.modLogChannelId) return;
-  const channel = await i.guild!.channels.fetch(settings.modLogChannelId).catch(() => null);
-  if (!channel?.isTextBased()) return;
-  const embed = new EmbedBuilder().setTitle(`Case #${c.id} • ${c.action}`).setDescription(`**User:** ${tag} (<@${c.userId}>)\n**Moderator:** <@${c.moderatorId}>\n**Reason:** ${c.reason}`).setTimestamp(c.createdAt);
-  await sendLog(i.guild, "moderation", `Case #${c.id} • ${c.action}`, `**User:** ${tag} (<@${c.userId}>)\\n**Moderator:** <@${c.moderatorId}>\\n**Reason:** ${c.reason}`);
+  await sendLog(i.guild!, "moderation", "Case #" + c.id + " • " + c.action,
+    "**User:** " + tag + " (<@" + c.userId + ">)\\n**Moderator:** <@" + c.moderatorId + ">\\n**Reason:** " + c.reason);
 }
 
 const reply = (i: ChatInputCommandInteraction, content: string, ephemeral = false) => i.reply({ content, ephemeral });
