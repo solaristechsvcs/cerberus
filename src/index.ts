@@ -4,20 +4,19 @@ import { connectDatabase } from "./database";
 import "./database/models/Warning";
 import "./database/models/ModerationCase";
 import "./database/models/GuildSettings";
+import "./database/models/UserNote";
 import { handleModerationCommand } from "./commands/moderation";
+import { handleNoteCommand } from "./commands/notes";
 
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
-});
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
 
-client.once(Events.ClientReady, (readyClient) => {
-  console.log(`Logged in as ${readyClient.user.tag}`);
-});
+client.once(Events.ClientReady, readyClient => console.log(`Logged in as ${readyClient.user.tag}`));
 
-client.on(Events.InteractionCreate, async (interaction) => {
+client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
   try {
-    await handleModerationCommand(interaction);
+    if (["note", "notes", "delnote"].includes(interaction.commandName)) await handleNoteCommand(interaction);
+    else await handleModerationCommand(interaction);
   } catch (error) {
     console.error("Command error:", error);
     const message = { content: "Something went wrong while executing that command.", ephemeral: true };
@@ -39,8 +38,4 @@ async function main(): Promise<void> {
 
 process.on("SIGINT", () => void shutdown("SIGINT"));
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
-
-main().catch((error) => {
-  console.error("Fatal startup error:", error);
-  process.exit(1);
-});
+main().catch(error => { console.error("Fatal startup error:", error); process.exit(1); });
