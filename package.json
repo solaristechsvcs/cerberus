@@ -1,0 +1,29 @@
+{
+  "name": "cerberus",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cerberus multi-bot Discord application with moderation commands.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "register": "tsx src/deploy-commands.ts",
+    "db:migrate": "tsx src/database/migrate.ts"
+  },
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "discord.js": "^14.24.2",
+    "dotenv": "^17.2.2",
+    "mysql2": "^3.15.0",
+    "pg": "^8.16.3",
+    "reflect-metadata": "^0.2.2",
+    "sequelize": "^6.37.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "@types/pg": "^8.15.5",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}
