@@ -6,3 +6,6 @@ config.local.js
 !.env.example
 npm-debug.log*
 .DS_Store
+config.js
+package-lock.json
+package.json
