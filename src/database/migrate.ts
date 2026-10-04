@@ -1,5 +1,7 @@
 import { connectDatabase, sequelize } from "./index";
 import "./models/Warning";
+import "./models/ModerationCase";
+import "./models/GuildSettings";
 
 async function main(): Promise<void> {
   await connectDatabase();
