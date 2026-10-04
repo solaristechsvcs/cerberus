@@ -7,6 +7,7 @@ import "./database/models/GuildSettings";
 import "./database/models/UserNote";
 import { handleModerationCommand } from "./commands/moderation";
 import { handleNoteCommand, noteCommands } from "./commands/notes";
+import { codeCommands, handleCodeCommand } from "./commands/codes";
 import { moderationCommands } from "./commands/moderation";
 import { startDashboard } from "./dashboard";
 import { registerDiscordLogging } from "./logging/discordLogger";
@@ -16,7 +17,7 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 
 registerDiscordLogging(client);
 
-const commandData = [...moderationCommands, ...noteCommands].map(command => command.toJSON());
+const commandData = [...moderationCommands, ...noteCommands, ...codeCommands].map(command => command.toJSON());
 
 async function registerCommands(): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.discord.token);
@@ -53,6 +54,7 @@ client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
   try {
     if (["note", "notes", "delnote"].includes(interaction.commandName)) await handleNoteCommand(interaction);
+    else if (interaction.commandName === "codes") await handleCodeCommand(interaction);
     else await handleModerationCommand(interaction);
   } catch (error) {
     console.error("Command error:", error);
