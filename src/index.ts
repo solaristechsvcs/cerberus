@@ -1,4 +1,4 @@
-import { Client, Events, GatewayIntentBits } from "discord.js";
+import { Client, Events, GatewayIntentBits, REST, Routes } from "discord.js";
 import { config } from "./config";
 import { connectDatabase } from "./database";
 import "./database/models/Warning";
@@ -6,12 +6,44 @@ import "./database/models/ModerationCase";
 import "./database/models/GuildSettings";
 import "./database/models/UserNote";
 import { handleModerationCommand } from "./commands/moderation";
-import { handleNoteCommand } from "./commands/notes";
+import { handleNoteCommand, noteCommands } from "./commands/notes";
+import { moderationCommands } from "./commands/moderation";
 import { startDashboard } from "./dashboard";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
 
-client.once(Events.ClientReady, readyClient => console.log(`Logged in as ${readyClient.user.tag}`));
+const commandData = [...moderationCommands, ...noteCommands].map(command => command.toJSON());
+
+async function registerCommands(): Promise<void> {
+  const rest = new REST({ version: "10" }).setToken(config.discord.token);
+
+  await rest.put(Routes.applicationCommands(config.discord.clientId), { body: commandData });
+
+  for (const guild of client.guilds.cache.values()) {
+    await rest.put(Routes.applicationGuildCommands(config.discord.clientId, guild.id), { body: commandData });
+  }
+
+  console.log(`Registered ${commandData.length} slash commands globally and in ${client.guilds.cache.size} server(s).`);
+}
+
+client.once(Events.ClientReady, async readyClient => {
+  console.log(`Logged in as ${readyClient.user.tag}`);
+  try {
+    await registerCommands();
+  } catch (error) {
+    console.error("Slash command registration failed:", error);
+  }
+});
+
+client.on(Events.GuildCreate, async guild => {
+  try {
+    const rest = new REST({ version: "10" }).setToken(config.discord.token);
+    await rest.put(Routes.applicationGuildCommands(config.discord.clientId, guild.id), { body: commandData });
+    console.log(`Registered slash commands in new server: ${guild.name}`);
+  } catch (error) {
+    console.error(`Slash command registration failed for ${guild.id}:`, error);
+  }
+});
 
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
