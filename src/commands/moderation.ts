@@ -2,6 +2,7 @@ import { ChatInputCommandInteraction, EmbedBuilder, PermissionFlagsBits, SlashCo
 import { Warning } from "../database/models/Warning";
 import { ModerationCase, ModerationAction } from "../database/models/ModerationCase";
 import { GuildSettings } from "../database/models/GuildSettings";
+import { sendLog } from "../logging/discordLogger";
 
 const reason = (o: any) => o.setName("reason").setDescription("Reason").setMaxLength(500);
 const user = (o: any) => o.setName("user").setDescription("Member/user").setRequired(true);
@@ -36,7 +37,7 @@ async function logCase(i: ChatInputCommandInteraction, c: ModerationCase, tag: s
   const channel = await i.guild!.channels.fetch(settings.modLogChannelId).catch(() => null);
   if (!channel?.isTextBased()) return;
   const embed = new EmbedBuilder().setTitle(`Case #${c.id} • ${c.action}`).setDescription(`**User:** ${tag} (<@${c.userId}>)\n**Moderator:** <@${c.moderatorId}>\n**Reason:** ${c.reason}`).setTimestamp(c.createdAt);
-  await channel.send({ embeds: [embed] }).catch(() => undefined);
+  await sendLog(i.guild, "moderation", `Case #${c.id} • ${c.action}`, `**User:** ${tag} (<@${c.userId}>)\\n**Moderator:** <@${c.moderatorId}>\\n**Reason:** ${c.reason}`);
 }
 
 const reply = (i: ChatInputCommandInteraction, content: string, ephemeral = false) => i.reply({ content, ephemeral });
