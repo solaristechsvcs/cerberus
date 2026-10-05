@@ -5,6 +5,9 @@ import "./database/models/Warning";
 import "./database/models/ModerationCase";
 import "./database/models/GuildSettings";
 import "./database/models/UserNote";
+import "./database/models/TicketSettings";
+import "./database/models/TicketPanel";
+import "./database/models/Ticket";
 import { handleModerationCommand } from "./commands/moderation";
 import { handleNoteCommand, noteCommands } from "./commands/notes";
 import { codeCommands, handleCodeCommand } from "./commands/codes";
@@ -12,12 +15,13 @@ import { moderationCommands } from "./commands/moderation";
 import { startDashboard } from "./dashboard";
 import { registerDiscordLogging } from "./logging/discordLogger";
 import { runDatabaseMigrations } from "./database/migrations";
+import { handleTicketButton, handleTicketCommand, ticketCommands } from "./commands/tickets";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions] });
 
 registerDiscordLogging(client);
 
-const commandData = [...moderationCommands, ...noteCommands, ...codeCommands].map(command => command.toJSON());
+const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands].map(command => command.toJSON());
 
 async function registerCommands(): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.discord.token);
@@ -51,10 +55,12 @@ client.on(Events.GuildCreate, async guild => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
-  if (!interaction.isChatInputCommand()) return;
   try {
+    if (interaction.isButton() && interaction.customId.startsWith("ticket:")) { await handleTicketButton(interaction); return; }
+    if (!interaction.isChatInputCommand()) return;
     if (["note", "notes", "delnote"].includes(interaction.commandName)) await handleNoteCommand(interaction);
     else if (interaction.commandName === "codes") await handleCodeCommand(interaction);
+    else if (interaction.commandName === "ticket") await handleTicketCommand(interaction);
     else await handleModerationCommand(interaction);
   } catch (error) {
     console.error("Command error:", error);
