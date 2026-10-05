@@ -2,6 +2,7 @@ import { QueryTypes } from "sequelize";
 import { sequelize } from "./index";
 
 export async function runDatabaseMigrations(): Promise<void> {
+  await sequelize.sync();
   if (sequelize.getDialect() === "mysql") {
     const [columns] = await sequelize.query("SHOW COLUMNS FROM guild_settings LIKE 'eventLogChannels'", { type: QueryTypes.SELECT });
     if (!columns) {
