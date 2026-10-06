@@ -24,9 +24,16 @@ async function ticketLog(guild:any,title:string,description:string){
  const ch=await guild.channels.fetch(settings.logChannelId).catch(()=>null); if(ch?.isTextBased()&&"send" in ch)await ch.send({embeds:[new EmbedBuilder().setTitle(title).setDescription(description).setColor(0x8f315c).setTimestamp()]});
 }
 export async function publishTicketPanel(guild:any,panel:TicketPanel,channelId:string){
- const channel=await guild.channels.fetch(channelId); if(!channel?.isTextBased()||!("send" in channel))throw new Error("Panel channel is not text based.");
- const embed=new EmbedBuilder().setTitle(panel.title).setDescription(panel.description).setColor(0x8f315c); const guildIcon=guild.iconURL({size:256}); if(guildIcon)embed.setThumbnail(guildIcon);\n const msg=await channel.send({embeds:[embed],components:[new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId("ticket:open:"+panel.id).setLabel(panel.buttonLabel).setStyle(ButtonStyle.Primary).setEmoji("🎫"))]});
- panel.channelId=channel.id;panel.messageId=msg.id;await panel.save();return msg;
+ const channel=await guild.channels.fetch(channelId);
+ if(!channel?.isTextBased()||!("send" in channel))throw new Error("Panel channel is not text based.");
+ const embed=new EmbedBuilder().setTitle(panel.title).setDescription(panel.description).setColor(0x8f315c);
+ const guildIcon=guild.iconURL({size:256});
+ if(guildIcon)embed.setThumbnail(guildIcon);
+ const msg=await channel.send({embeds:[embed],components:[new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId("ticket:open:"+panel.id).setLabel(panel.buttonLabel).setStyle(ButtonStyle.Primary).setEmoji("🎫"))]});
+ panel.channelId=channel.id;
+ panel.messageId=msg.id;
+ await panel.save();
+ return msg;
 }
 export async function openTicket(i:ButtonInteraction):Promise<void>{
  if(!i.guild)return; const panelId=Number(i.customId.split(":")[2]); const panel=await TicketPanel.findOne({where:{id:panelId,guildId:i.guild.id}}); if(!panel)return void await i.reply({content:"This ticket panel no longer exists.",ephemeral:true});
