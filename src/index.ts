@@ -9,6 +9,8 @@ import "./database/models/TicketSettings";
 import "./database/models/TicketPanel";
 import "./database/models/Ticket";
 import "./database/models/TicketTranscript";
+import "./database/models/VerificationSettings";
+import "./database/models/VerificationPanel";
 import { handleModerationCommand } from "./commands/moderation";
 import { handleNoteCommand, noteCommands } from "./commands/notes";
 import { codeCommands, handleCodeCommand } from "./commands/codes";
@@ -19,12 +21,14 @@ import { runDatabaseMigrations } from "./database/migrations";
 import { handleTicketButton, handleTicketCommand, ticketCommands } from "./commands/tickets";
 import { TicketPanel } from "./database/models/TicketPanel";
 import { developerCommands, handleDeveloperCommand } from "./commands/developer";
+import { handleVerificationButton, handleVerificationCommand, verificationCommands } from "./commands/verification";
+import { VerificationPanel } from "./database/models/VerificationPanel";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions] });
 
 registerDiscordLogging(client);
 
-const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands, ...developerCommands].map(command => command.toJSON());
+const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands, ...developerCommands, ...verificationCommands].map(command => command.toJSON());
 
 async function registerCommands(): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.discord.token);
@@ -60,6 +64,7 @@ client.on(Events.GuildCreate, async guild => {
 client.on(Events.MessageDelete, async message => {
   try {
     await TicketPanel.destroy({ where: { guildId: message.guildId ?? "", messageId: message.id } });
+    await VerificationPanel.destroy({ where: { guildId: message.guildId ?? "", messageId: message.id } });
   } catch (error) {
     console.error("Ticket panel cleanup failed:", error);
   }
@@ -68,11 +73,13 @@ client.on(Events.MessageDelete, async message => {
 client.on(Events.InteractionCreate, async interaction => {
   try {
     if (interaction.isButton() && interaction.customId.startsWith("ticket:")) { await handleTicketButton(interaction); return; }
+    if (interaction.isButton() && interaction.customId.startsWith("verify:")) { await handleVerificationButton(interaction); return; }
     if (!interaction.isChatInputCommand()) return;
     if (["note", "notes", "delnote"].includes(interaction.commandName)) await handleNoteCommand(interaction);
     else if (interaction.commandName === "codes") await handleCodeCommand(interaction);
     else if (interaction.commandName === "ticket") await handleTicketCommand(interaction);
     else if (interaction.commandName === "gannounce") await handleDeveloperCommand(interaction);
+    else if (interaction.commandName === "verify") await handleVerificationCommand(interaction);
     else await handleModerationCommand(interaction);
   } catch (error) {
     console.error("Command error:", error);
