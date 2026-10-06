@@ -12,6 +12,8 @@ import "./database/models/TicketTranscript";
 import "./database/models/VerificationSettings";
 import "./database/models/VerificationPanel";
 import "./database/models/AnnouncementSettings";
+import "./database/models/DeveloperDmSettings";
+import "./database/models/DeveloperDmThread";
 import { handleModerationCommand } from "./commands/moderation";
 import { handleNoteCommand, noteCommands } from "./commands/notes";
 import { codeCommands, handleCodeCommand } from "./commands/codes";
@@ -25,12 +27,13 @@ import { developerCommands, handleDeveloperCommand } from "./commands/developer"
 import { handleVerificationButton, handleVerificationCommand, verificationCommands } from "./commands/verification";
 import { VerificationPanel } from "./database/models/VerificationPanel";
 import { announcementCommands, handleAnnouncementCommand } from "./commands/announcements";
+import { developerDmCommands, handleDeveloperDm, handleDeveloperDmCommand } from "./commands/developerDm";
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions] });
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessages] });
 
 registerDiscordLogging(client);
 
-const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands, ...developerCommands, ...verificationCommands, ...announcementCommands].map(command => command.toJSON());
+const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands, ...developerCommands, ...verificationCommands, ...announcementCommands, ...developerDmCommands].map(command => command.toJSON());
 
 async function registerCommands(): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.discord.token);
@@ -72,7 +75,7 @@ client.on(Events.MessageDelete, async message => {
   }
 });
 
-client.on(Events.InteractionCreate, async interaction => {
+client.on(Events.MessageCreate, async message => { try { await handleDeveloperDm(message); } catch(error) { console.error("Developer DM relay failed:",error); } });\n\nclient.on(Events.InteractionCreate, async interaction => {
   try {
     if (interaction.isButton() && interaction.customId.startsWith("ticket:")) { await handleTicketButton(interaction); return; }
     if (interaction.isButton() && interaction.customId.startsWith("verify:")) { await handleVerificationButton(interaction); return; }
@@ -83,6 +86,7 @@ client.on(Events.InteractionCreate, async interaction => {
     else if (interaction.commandName === "gannounce") await handleDeveloperCommand(interaction);
     else if (interaction.commandName === "verify") await handleVerificationCommand(interaction);
     else if (interaction.commandName === "announce") await handleAnnouncementCommand(interaction);
+    else if (interaction.commandName === "dmrelay" || interaction.commandName === "dr") await handleDeveloperDmCommand(interaction);
     else await handleModerationCommand(interaction);
   } catch (error) {
     console.error("Command error:", error);
