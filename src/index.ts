@@ -16,6 +16,7 @@ import { startDashboard } from "./dashboard";
 import { registerDiscordLogging } from "./logging/discordLogger";
 import { runDatabaseMigrations } from "./database/migrations";
 import { handleTicketButton, handleTicketCommand, ticketCommands } from "./commands/tickets";
+import { TicketPanel } from "./database/models/TicketPanel";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions] });
 
@@ -51,6 +52,14 @@ client.on(Events.GuildCreate, async guild => {
     console.log(`Registered slash commands in new server: ${guild.name}`);
   } catch (error) {
     console.error(`Slash command registration failed for ${guild.id}:`, error);
+  }
+});
+
+client.on(Events.MessageDelete, async message => {
+  try {
+    await TicketPanel.destroy({ where: { guildId: message.guildId ?? "", messageId: message.id } });
+  } catch (error) {
+    console.error("Ticket panel cleanup failed:", error);
   }
 });
 
