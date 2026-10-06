@@ -1,4 +1,4 @@
-import { ChannelType, ChatInputCommandInteraction, EmbedBuilder, Message, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, ChatInputCommandInteraction, EmbedBuilder, Message, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
 import { config } from "../config";
 import { DeveloperDmSettings } from "../database/models/DeveloperDmSettings";
 import { DeveloperDmThread } from "../database/models/DeveloperDmThread";
@@ -26,7 +26,7 @@ export async function handleDeveloperDm(message:Message):Promise<void>{
    ...(config.dashboard.globalAdmins??[]).map(id=>({id,allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory]}))
   ]});
   if(thread){thread.channelId=channel.id;thread.guildId=guild.id;await thread.save();}else thread=await DeveloperDmThread.create({userId:message.author.id,channelId:channel.id,guildId:guild.id});
-  await channel.send({embeds:[new EmbedBuilder().setTitle("Developer DM Conversation").setDescription("**User:** <@"+message.author.id+">\n**Username:** "+message.author.tag+"\n**User ID:** "+message.author.id+"\n\nUse **/dr** in this channel to reply. Normal messages in this channel are not sent to the user.").setColor(0x8f315c).setThumbnail(message.author.displayAvatarURL()).setTimestamp()]});
+  await channel.send({embeds:[new EmbedBuilder().setTitle("Developer DM Conversation").setDescription("**User:** <@"+message.author.id+">\n**Username:** "+message.author.tag+"\n**User ID:** "+message.author.id+"\n\nUse **/dr** in this channel to reply. Normal messages in this channel are not sent to the user.").setColor(0x8f315c).setThumbnail(message.author.displayAvatarURL()).setTimestamp()]],components:[new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId("developer-dm:close").setLabel("Close Conversation").setEmoji("🔒").setStyle(ButtonStyle.Danger))]});
  }
  const attachments=[...message.attachments.values()].map(a=>a.url);
  const body=message.content||"*No text content*";
@@ -44,4 +44,15 @@ export async function handleDeveloperDmCommand(i:ChatInputCommandInteraction):Pr
  const thread=await DeveloperDmThread.findOne({where:{channelId:i.channelId,guildId:i.guild.id}});if(!thread)return void await i.reply({content:"This is not a developer DM relay channel.",ephemeral:true});
  const text=i.options.getString("message",true).trim();const user=await i.client.users.fetch(thread.userId).catch(()=>null);if(!user)return void await i.reply({content:"The associated Discord user could not be found.",ephemeral:true});
  try{await user.send({embeds:[new EmbedBuilder().setTitle("Cerberus Developer Support").setDescription(text).setColor(0x8f315c).setFooter({text:"Reply to this DM to continue the conversation."}).setTimestamp()]});await i.reply({content:"Reply sent to <@"+thread.userId+">.",ephemeral:true});if(i.channel?.isTextBased()&&"send" in i.channel)await i.channel.send({embeds:[new EmbedBuilder().setAuthor({name:"Developer reply • "+i.user.tag,iconURL:i.user.displayAvatarURL()}).setDescription(text).setColor(0x8f315c).setTimestamp()]});}catch{await i.reply({content:"The user could not be DMed. They may have blocked the bot or disabled DMs.",ephemeral:true});}
+}
+
+export async function handleDeveloperDmButton(i:ButtonInteraction):Promise<void>{
+ if(i.customId!=="developer-dm:close")return;
+ if(!globalAdmin(i.user.id))return void await i.reply({content:"Only Cerberus global administrators can close developer DM conversations.",ephemeral:true});
+ if(!i.guild)return void await i.reply({content:"This conversation cannot be closed here.",ephemeral:true});
+ const thread=await DeveloperDmThread.findOne({where:{channelId:i.channelId,guildId:i.guild.id}});
+ if(!thread)return void await i.reply({content:"This developer DM conversation is no longer active.",ephemeral:true});
+ await i.reply({content:"Closing this developer DM conversation...",ephemeral:true});
+ await thread.destroy();
+ if(i.channel?.isTextBased()&&"delete" in i.channel)await i.channel.delete("Developer DM conversation closed");
 }
