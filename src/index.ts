@@ -8,6 +8,7 @@ import "./database/models/UserNote";
 import "./database/models/TicketSettings";
 import "./database/models/TicketPanel";
 import "./database/models/Ticket";
+import "./database/models/TicketTranscript";
 import { handleModerationCommand } from "./commands/moderation";
 import { handleNoteCommand, noteCommands } from "./commands/notes";
 import { codeCommands, handleCodeCommand } from "./commands/codes";
