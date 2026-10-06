@@ -27,7 +27,7 @@ import { developerCommands, handleDeveloperCommand } from "./commands/developer"
 import { handleVerificationButton, handleVerificationCommand, verificationCommands } from "./commands/verification";
 import { VerificationPanel } from "./database/models/VerificationPanel";
 import { announcementCommands, handleAnnouncementCommand } from "./commands/announcements";
-import { developerDmCommands, handleDeveloperDm, handleDeveloperDmButton, handleDeveloperDmCommand } from "./commands/developerDm";
+import { developerDmCommands, handleDeveloperDm, handleDeveloperDmButton, handleDeveloperDmCommand, handleDeveloperDmModal } from "./commands/developerDm";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessages], partials: [Partials.Channel] });
 
@@ -88,6 +88,7 @@ client.on(Events.InteractionCreate, async interaction => {
     if (interaction.isButton() && interaction.customId.startsWith("ticket:")) { await handleTicketButton(interaction); return; }
     if (interaction.isButton() && interaction.customId.startsWith("verify:")) { await handleVerificationButton(interaction); return; }
     if (interaction.isButton() && interaction.customId.startsWith("developer-dm:")) { await handleDeveloperDmButton(interaction); return; }
+    if (interaction.isModalSubmit() && interaction.customId === "developer-dm:close-modal") { await handleDeveloperDmModal(interaction); return; }
     if (!interaction.isChatInputCommand()) return;
     if (["note", "notes", "delnote"].includes(interaction.commandName)) await handleNoteCommand(interaction);
     else if (interaction.commandName === "codes") await handleCodeCommand(interaction);
