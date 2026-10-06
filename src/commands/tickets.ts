@@ -2,6 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Channe
 import { TicketSettings } from "../database/models/TicketSettings";
 import { TicketPanel } from "../database/models/TicketPanel";
 import { Ticket } from "../database/models/Ticket";
+import { TicketTranscript } from "../database/models/TicketTranscript";
 
 export const ticketCommands=[new SlashCommandBuilder().setName("ticket").setDescription("Configure and manage tickets.")
  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild.toString())
@@ -57,7 +58,7 @@ function escapeHtml(value:string):string{
 function linkifyHtml(value:string):string{
  return escapeHtml(value).replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>').replace(/\n/g,"<br>");
 }
-async function createTicketTranscript(channel:any):Promise<Buffer>{
+async function createTicketTranscript(channel:any):Promise<string>{
  const messages:any[]=[];let before:string|undefined;
  while(true){
   const batch=await channel.messages.fetch({limit:100,before}).catch(()=>null);
@@ -93,7 +94,7 @@ async function createTicketTranscript(channel:any):Promise<Buffer>{
  '*{box-sizing:border-box}body{margin:0;background:#1e1f22;color:#dbdee1;font-family:gg sans,Inter,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif}.top{background:#111214;border-bottom:1px solid #3f4147;padding:24px}.top-inner{max-width:1000px;margin:auto;display:flex;align-items:center;gap:16px}.server-icon{width:58px;height:58px;border-radius:18px;object-fit:cover;background:#2b2d31}.top h1{font-size:20px;margin:0 0 5px;color:#f2f3f5}.meta{color:#949ba4;font-size:13px}.messages{max-width:1000px;margin:auto;padding:22px 0 60px}.message{display:flex;gap:16px;padding:10px 22px}.message:hover{background:#2e3035}.avatar{width:40px;height:40px;border-radius:50%;object-fit:cover;background:#313338;flex:0 0 40px}.message-body{min-width:0;flex:1}.message-head{display:flex;align-items:baseline;gap:7px}.message-head strong{color:#f2f3f5}.username,time{color:#949ba4;font-size:12px}.content{margin-top:3px;line-height:1.42;overflow-wrap:anywhere}.content a,.attachment a{color:#00a8fc;text-decoration:none}.attachment{margin-top:8px}.attachment-image{display:block;max-width:min(520px,100%);max-height:420px;border-radius:8px;margin-bottom:6px}.discord-embed{border-left:4px solid #8f315c;background:#2b2d31;border-radius:4px;margin-top:8px;padding:12px;max-width:520px}.embed-title{font-weight:700;color:#f2f3f5;margin-bottom:6px}.embed-field{margin-top:8px}.empty{text-align:center;color:#949ba4;padding:50px}</style></head><body>'+
  '<header class="top"><div class="top-inner">'+(guildIcon?'<img class="server-icon" src="'+escapeHtml(guildIcon)+'" alt="">':'<div class="server-icon"></div>')+'<div><h1>#'+escapeHtml(channel.name)+'</h1><div class="meta">'+escapeHtml(channel.guild.name)+' • '+messages.length+' messages • Generated '+escapeHtml(new Date().toLocaleString("en-US"))+'</div></div></div></header>'+
  '<main class="messages">'+(rendered||'<div class="empty">No messages were found in this ticket.</div>')+'</main></body></html>';
- return Buffer.from(html,"utf8");
+ return html;
 }
 
 async function sendTicketTranscript(guild:any,ticket:Ticket,channel:any,closedBy:string):Promise<void>{
@@ -101,7 +102,9 @@ async function sendTicketTranscript(guild:any,ticket:Ticket,channel:any,closedBy
  if(!settings?.logChannelId)return;
  const logChannel=await guild.channels.fetch(settings.logChannelId).catch(()=>null);
  if(!logChannel?.isTextBased()||!("send" in logChannel))return;
- const transcript=await createTicketTranscript(channel);
+ const html=await createTicketTranscript(channel);
+ await TicketTranscript.upsert({ticketId:ticket.id,guildId:guild.id,userId:ticket.userId,closedBy,channelName:channel.name,html});
+ const transcript=Buffer.from(html,"utf8");
  await logChannel.send({
   embeds:[new EmbedBuilder().setTitle("Ticket Closed").setDescription("**Ticket:** #"+ticket.id+"\n**User:** <@"+ticket.userId+">\n**Closed by:** <@"+closedBy+">\n**Messages:** transcript attached below.").setColor(0x8f315c).setTimestamp()],
   files:[{attachment:transcript,name:"ticket-"+ticket.id+"-transcript.html"}]
