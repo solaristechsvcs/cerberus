@@ -25,7 +25,7 @@ async function ticketLog(guild:any,title:string,description:string){
 }
 export async function publishTicketPanel(guild:any,panel:TicketPanel,channelId:string){
  const channel=await guild.channels.fetch(channelId); if(!channel?.isTextBased()||!("send" in channel))throw new Error("Panel channel is not text based.");
- const msg=await channel.send({embeds:[new EmbedBuilder().setTitle(panel.title).setDescription(panel.description).setColor(0x8f315c)],components:[new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId("ticket:open:"+panel.id).setLabel(panel.buttonLabel).setStyle(ButtonStyle.Primary).setEmoji("🎫"))]});
+ const embed=new EmbedBuilder().setTitle(panel.title).setDescription(panel.description).setColor(0x8f315c); const guildIcon=guild.iconURL({size:256}); if(guildIcon)embed.setThumbnail(guildIcon);\n const msg=await channel.send({embeds:[embed],components:[new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId("ticket:open:"+panel.id).setLabel(panel.buttonLabel).setStyle(ButtonStyle.Primary).setEmoji("🎫"))]});
  panel.channelId=channel.id;panel.messageId=msg.id;await panel.save();return msg;
 }
 export async function openTicket(i:ButtonInteraction):Promise<void>{
