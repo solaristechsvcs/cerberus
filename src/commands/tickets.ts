@@ -51,10 +51,64 @@ export async function openTicket(i:ButtonInteraction):Promise<void>{
  await ticketLog(i.guild,"Ticket Opened","**Ticket:** <#"+channel.id+">\n**User:** <@"+i.user.id+">\n**Panel:** "+panel.name);
  await i.editReply("Your ticket has been created: <#"+channel.id+">");
 }
+async function createTicketTranscript(channel:any):Promise<Buffer>{
+ const messages:any[]=[];let before:string|undefined;
+ while(true){
+  const batch=await channel.messages.fetch({limit:100,before}).catch(()=>null);
+  if(!batch||batch.size===0)break;
+  messages.push(...batch.values());
+  if(batch.size<100)break;
+  before=batch.last()?.id;
+  if(!before)break;
+ }
+ messages.sort((a,b)=>a.createdTimestamp-b.createdTimestamp);
+ const lines=[
+  "Cerberus Ticket Transcript",
+  "Server: "+channel.guild.name+" ("+channel.guild.id+")",
+  "Channel: #"+channel.name+" ("+channel.id+")",
+  "Generated: "+new Date().toISOString(),
+  "Messages: "+messages.length,
+  "=".repeat(72),
+  ""
+ ];
+ for(const message of messages){
+  const author=message.author?message.author.tag+" ("+message.author.id+")":"Unknown User";
+  const content=message.content?.trim()||"[No text content]";
+  lines.push("["+new Date(message.createdTimestamp).toISOString()+"] "+author);
+  lines.push(content);
+  for(const attachment of message.attachments.values())lines.push("[Attachment] "+attachment.name+": "+attachment.url);
+  for(const embed of message.embeds){
+   if(embed.title)lines.push("[Embed title] "+embed.title);
+   if(embed.description)lines.push("[Embed description] "+embed.description);
+  }
+  lines.push("");
+ }
+ return Buffer.from(lines.join("\n"),"utf8");
+}
+
+async function sendTicketTranscript(guild:any,ticket:Ticket,channel:any,closedBy:string):Promise<void>{
+ const settings=await TicketSettings.findByPk(guild.id);
+ if(!settings?.logChannelId)return;
+ const logChannel=await guild.channels.fetch(settings.logChannelId).catch(()=>null);
+ if(!logChannel?.isTextBased()||!("send" in logChannel))return;
+ const transcript=await createTicketTranscript(channel);
+ await logChannel.send({
+  embeds:[new EmbedBuilder().setTitle("Ticket Closed").setDescription("**Ticket:** #"+ticket.id+"\n**User:** <@"+ticket.userId+">\n**Closed by:** <@"+closedBy+">\n**Messages:** transcript attached below.").setColor(0x8f315c).setTimestamp()],
+  files:[{attachment:transcript,name:"ticket-"+ticket.id+"-transcript.txt"}]
+ });
+}
+
 export async function closeTicket(guild:any,channelId:string,closedBy:string):Promise<boolean>{
  const ticket=await Ticket.findOne({where:{guildId:guild.id,channelId,status:"OPEN"}});if(!ticket)return false;
- ticket.status="CLOSED";ticket.closedBy=closedBy;await ticket.save();await ticketLog(guild,"Ticket Closed","**Ticket:** #"+ticket.id+"\n**User:** <@"+ticket.userId+">\n**Closed by:** <@"+closedBy+">");
- const channel=await guild.channels.fetch(channelId).catch(()=>null);if(channel){await channel.delete("Ticket closed by "+closedBy).catch(()=>null);}return true;
+ const channel=await guild.channels.fetch(channelId).catch(()=>null);
+ if(channel?.isTextBased()&&"messages" in channel){
+  try{await sendTicketTranscript(guild,ticket,channel,closedBy);}catch(error){console.error("Ticket transcript failed:",error);}
+ }else{
+  await ticketLog(guild,"Ticket Closed","**Ticket:** #"+ticket.id+"\n**User:** <@"+ticket.userId+">\n**Closed by:** <@"+closedBy+">");
+ }
+ ticket.status="CLOSED";ticket.closedBy=closedBy;await ticket.save();
+ if(channel)await channel.delete("Ticket closed by "+closedBy).catch(()=>null);
+ return true;
 }
 export async function handleTicketButton(i:ButtonInteraction):Promise<void>{if(i.customId.startsWith("ticket:open:"))return openTicket(i);if(i.customId==="ticket:close"){if(!i.guild)return;await i.deferReply({ephemeral:true});const ok=await closeTicket(i.guild,i.channelId,i.user.id);if(!ok)await i.editReply("This is not an open ticket.");}}
 export async function handleTicketCommand(i:ChatInputCommandInteraction):Promise<void>{
