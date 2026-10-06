@@ -17,7 +17,9 @@ module.exports = {
     enabled: true,
     port: 3000,
     publicUrl: "https://dashboard.example.com",
-    clientSecret: "CHANGE_ME"
+    clientSecret: "CHANGE_ME",
+    // Discord user IDs with full dashboard access to every server Cerberus is in.
+    globalAdmins: []
   },
   logLevel: "info"
 };
