@@ -26,7 +26,17 @@ export async function handleDeveloperDm(message:Message):Promise<void>{
    ...(config.dashboard.globalAdmins??[]).map(id=>({id,allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory]}))
   ]});
   if(thread){thread.channelId=channel.id;thread.guildId=guild.id;await thread.save();}else thread=await DeveloperDmThread.create({userId:message.author.id,channelId:channel.id,guildId:guild.id});
-  await channel.send({embeds:[new EmbedBuilder().setTitle("Developer DM Conversation").setDescription("**User:** <@"+message.author.id+">\n**Username:** "+message.author.tag+"\n**User ID:** "+message.author.id+"\n\nUse **/dr** in this channel to reply. Normal messages in this channel are not sent to the user.").setColor(0x8f315c).setThumbnail(message.author.displayAvatarURL()).setTimestamp()]],components:[new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId("developer-dm:close").setLabel("Close Conversation").setEmoji("🔒").setStyle(ButtonStyle.Danger))]});
+  await channel.send({
+   embeds:[new EmbedBuilder()
+    .setTitle("Developer DM Conversation")
+    .setDescription("**User:** <@"+message.author.id+">\\n**Username:** "+message.author.tag+"\\n**User ID:** "+message.author.id+"\\n\\nUse **/dr** in this channel to reply. Normal messages in this channel are not sent to the user.")
+    .setColor(0x8f315c)
+    .setThumbnail(message.author.displayAvatarURL())
+    .setTimestamp()],
+   components:[new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId("developer-dm:close").setLabel("Close Conversation").setEmoji("🔒").setStyle(ButtonStyle.Danger)
+   )]
+  });
  }
  const attachments=[...message.attachments.values()].map(a=>a.url);
  const body=message.content||"*No text content*";
