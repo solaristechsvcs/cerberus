@@ -18,12 +18,13 @@ import { registerDiscordLogging } from "./logging/discordLogger";
 import { runDatabaseMigrations } from "./database/migrations";
 import { handleTicketButton, handleTicketCommand, ticketCommands } from "./commands/tickets";
 import { TicketPanel } from "./database/models/TicketPanel";
+import { developerCommands, handleDeveloperCommand } from "./commands/developer";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions] });
 
 registerDiscordLogging(client);
 
-const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands].map(command => command.toJSON());
+const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands, ...developerCommands].map(command => command.toJSON());
 
 async function registerCommands(): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.discord.token);
@@ -71,6 +72,7 @@ client.on(Events.InteractionCreate, async interaction => {
     if (["note", "notes", "delnote"].includes(interaction.commandName)) await handleNoteCommand(interaction);
     else if (interaction.commandName === "codes") await handleCodeCommand(interaction);
     else if (interaction.commandName === "ticket") await handleTicketCommand(interaction);
+    else if (interaction.commandName === "gannounce") await handleDeveloperCommand(interaction);
     else await handleModerationCommand(interaction);
   } catch (error) {
     console.error("Command error:", error);
