@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+import { config } from "../config";
 import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, ChatInputCommandInteraction, EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
 import { TicketSettings } from "../database/models/TicketSettings";
 import { TicketPanel } from "../database/models/TicketPanel";
@@ -98,15 +100,23 @@ async function createTicketTranscript(channel:any):Promise<string>{
 }
 
 async function sendTicketTranscript(guild:any,ticket:Ticket,channel:any,closedBy:string):Promise<void>{
+ const html=await createTicketTranscript(channel);
+ const existing=await TicketTranscript.findOne({where:{ticketId:ticket.id}});
+ const accessToken=existing?.accessToken||crypto.randomBytes(32).toString("hex");
+ await TicketTranscript.upsert({ticketId:ticket.id,guildId:guild.id,userId:ticket.userId,closedBy,channelName:channel.name,accessToken,html});
+ const baseUrl=config.dashboard.publicUrl.replace(/\/$/,"");
+ const transcriptUrl=baseUrl+"/transcripts/"+accessToken;
+ const user=await guild.client.users.fetch(ticket.userId).catch(()=>null);
+ if(user){
+  await user.send({embeds:[new EmbedBuilder().setTitle("Your Ticket Transcript").setDescription("Your ticket in **"+guild.name+"** has been closed.\n\n[View your transcript]("+transcriptUrl+")").setColor(0x8f315c).setTimestamp()]}).catch(error=>console.warn("Could not DM ticket transcript to "+ticket.userId+":",error));
+ }
  const settings=await TicketSettings.findByPk(guild.id);
  if(!settings?.logChannelId)return;
  const logChannel=await guild.channels.fetch(settings.logChannelId).catch(()=>null);
  if(!logChannel?.isTextBased()||!("send" in logChannel))return;
- const html=await createTicketTranscript(channel);
- await TicketTranscript.upsert({ticketId:ticket.id,guildId:guild.id,userId:ticket.userId,closedBy,channelName:channel.name,html});
  const transcript=Buffer.from(html,"utf8");
  await logChannel.send({
-  embeds:[new EmbedBuilder().setTitle("Ticket Closed").setDescription("**Ticket:** #"+ticket.id+"\n**User:** <@"+ticket.userId+">\n**Closed by:** <@"+closedBy+">\n**Messages:** transcript attached below.").setColor(0x8f315c).setTimestamp()],
+  embeds:[new EmbedBuilder().setTitle("Ticket Closed").setDescription("**Ticket:** #"+ticket.id+"\n**User:** <@"+ticket.userId+">\n**Closed by:** <@"+closedBy+">\n**Transcript:** [View on website]("+transcriptUrl+")").setColor(0x8f315c).setTimestamp()],
   files:[{attachment:transcript,name:"ticket-"+ticket.id+"-transcript.html"}]
  });
 }
