@@ -19,7 +19,6 @@ export const ticketCommands=[new SlashCommandBuilder().setName("ticket").setDesc
  .addSubcommand(s=>s.setName("remove").setDescription("Remove a member from the current ticket.").addUserOption(o=>o.setName("user").setDescription("Member").setRequired(true)))
 ];
 
-const safeName=(name:string)=>name.toLowerCase().replace(/[^a-z0-9-]/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"").slice(0,80)||"user";
 async function ticketLog(guild:any,title:string,description:string){
  const settings=await TicketSettings.findByPk(guild.id); if(!settings?.logChannelId)return;
  const ch=await guild.channels.fetch(settings.logChannelId).catch(()=>null); if(ch?.isTextBased()&&"send" in ch)await ch.send({embeds:[new EmbedBuilder().setTitle(title).setDescription(description).setColor(0x8f315c).setTimestamp()]});
@@ -34,7 +33,7 @@ export async function openTicket(i:ButtonInteraction):Promise<void>{
  const settings=await TicketSettings.findByPk(i.guild.id);if(!settings?.categoryId||!settings.staffRoleId)return void await i.reply({content:"The ticket system is not fully configured.",ephemeral:true});
  const existing=await Ticket.findOne({where:{guildId:i.guild.id,userId:i.user.id,status:"OPEN"}});if(existing){const ch=i.guild.channels.cache.get(existing.channelId);if(ch)return void await i.reply({content:"You already have an open ticket: <#"+existing.channelId+">",ephemeral:true});await existing.update({status:"CLOSED"});}
  await i.deferReply({ephemeral:true});
- const channel=await i.guild.channels.create({name:"ticket-"+safeName(i.user.username),type:ChannelType.GuildText,parent:settings.categoryId,permissionOverwrites:[
+ const channel=await i.guild.channels.create({name:"ticket-"+i.user.id,type:ChannelType.GuildText,parent:settings.categoryId,permissionOverwrites:[
   {id:i.guild.roles.everyone.id,deny:[PermissionFlagsBits.ViewChannel]},
   {id:i.user.id,allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.AttachFiles]},
   {id:settings.staffRoleId,allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.ManageMessages]},
