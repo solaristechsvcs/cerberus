@@ -75,7 +75,15 @@ client.on(Events.MessageDelete, async message => {
   }
 });
 
-client.on(Events.MessageCreate, async message => { try { await handleDeveloperDm(message); } catch(error) { console.error("Developer DM relay failed:",error); } });\n\nclient.on(Events.InteractionCreate, async interaction => {
+client.on(Events.MessageCreate, async message => {
+  try {
+    await handleDeveloperDm(message);
+  } catch (error) {
+    console.error("Developer DM relay failed:", error);
+  }
+});
+
+client.on(Events.InteractionCreate, async interaction => {
   try {
     if (interaction.isButton() && interaction.customId.startsWith("ticket:")) { await handleTicketButton(interaction); return; }
     if (interaction.isButton() && interaction.customId.startsWith("verify:")) { await handleVerificationButton(interaction); return; }
