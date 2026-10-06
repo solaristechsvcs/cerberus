@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, ChatInputCommandInteraction, EmbedBuilder, Message, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, ChatInputCommandInteraction, EmbedBuilder, Message, ModalBuilder, ModalSubmitInteraction, PermissionFlagsBits, SlashCommandBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 import { config } from "../config";
 import { DeveloperDmSettings } from "../database/models/DeveloperDmSettings";
 import { DeveloperDmThread } from "../database/models/DeveloperDmThread";
@@ -62,7 +62,26 @@ export async function handleDeveloperDmButton(i:ButtonInteraction):Promise<void>
  if(!i.guild)return void await i.reply({content:"This conversation cannot be closed here.",ephemeral:true});
  const thread=await DeveloperDmThread.findOne({where:{channelId:i.channelId,guildId:i.guild.id}});
  if(!thread)return void await i.reply({content:"This developer DM conversation is no longer active.",ephemeral:true});
- await i.reply({content:"Closing this developer DM conversation...",ephemeral:true});
+ const modal=new ModalBuilder().setCustomId("developer-dm:close-modal").setTitle("Close Developer Conversation");
+ const reason=new TextInputBuilder().setCustomId("reason").setLabel("Reason for closing").setStyle(TextInputStyle.Paragraph).setRequired(true).setMinLength(3).setMaxLength(1000).setPlaceholder("Explain why this conversation is being closed...");
+ modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(reason));
+ await i.showModal(modal);
+}
+
+export async function handleDeveloperDmModal(i:ModalSubmitInteraction):Promise<void>{
+ if(i.customId!=="developer-dm:close-modal")return;
+ if(!globalAdmin(i.user.id))return void await i.reply({content:"Only Cerberus global administrators can close developer DM conversations.",ephemeral:true});
+ if(!i.guild)return void await i.reply({content:"This conversation cannot be closed here.",ephemeral:true});
+ const thread=await DeveloperDmThread.findOne({where:{channelId:i.channelId,guildId:i.guild.id}});
+ if(!thread)return void await i.reply({content:"This developer DM conversation is no longer active.",ephemeral:true});
+ const reason=i.fields.getTextInputValue("reason").trim();
+ if(!reason)return void await i.reply({content:"A close reason is required.",ephemeral:true});
+ const user=await i.client.users.fetch(thread.userId).catch(()=>null);
+ let dmSent=false;
+ if(user){
+  dmSent=await user.send({embeds:[new EmbedBuilder().setTitle("Cerberus Developer Support • Conversation Closed").setDescription("Your support conversation has been closed.\n\n**Reason:**\n"+reason+"\n\nIf you need further assistance, simply message Cerberus again and a new conversation will be opened.").setColor(0x8f315c).setTimestamp()]}).then(()=>true).catch(()=>false);
+ }
+ await i.reply({content:dmSent?"Conversation closed. The user was notified with the close reason.":"Conversation closed, but the user could not be DMed with the close reason.",ephemeral:true});
  await thread.destroy();
- if(i.channel?.isTextBased()&&"delete" in i.channel)await i.channel.delete("Developer DM conversation closed");
+ if(i.channel?.isTextBased()&&"delete" in i.channel)await i.channel.delete("Developer DM conversation closed: "+reason.slice(0,400));
 }
