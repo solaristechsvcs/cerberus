@@ -21,6 +21,7 @@ import "./database/models/ChangelogSettings";
 import "./database/models/ChangelogEntry";
 import "./database/models/AntiRaidSettings";
 import "./database/models/InviteTrackingSettings";
+import "./database/models/ReactionRole";
 import { handleModerationCommand } from "./commands/moderation";
 import { handleNoteCommand } from "./commands/notes";
 import { handleCodeCommand } from "./commands/codes";
@@ -40,6 +41,7 @@ import { handleAntiRaidCommand, handleAntiRaidJoin } from "./commands/antiRaid";
 import { handleInviteCommand, handleInviteJoin, primeInviteCache, refreshInviteCache } from "./commands/invites";
 import { handleBuildCommand } from "./commands/builds";
 import { handleNukaTraderCommand } from "./commands/nukaTrader";
+import { handleReactionRoleAdd, handleReactionRoleCommand, handleReactionRoleRemove } from "./commands/reactionRoles";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessages], partials: [Partials.Channel] });
 
@@ -87,6 +89,8 @@ client.on(Events.GuildMemberAdd, async member => {
 
 client.on(Events.InviteCreate, invite => { void refreshInviteCache(invite.guild).catch(()=>null); });
 client.on(Events.InviteDelete, invite => { if(invite.guild)void refreshInviteCache(invite.guild).catch(()=>null); });
+client.on(Events.MessageReactionAdd, (reaction, user) => { void handleReactionRoleAdd(reaction, user); });
+client.on(Events.MessageReactionRemove, (reaction, user) => { void handleReactionRoleRemove(reaction, user); });
 
 client.on(Events.MessageDelete, async message => {
   try {
@@ -125,6 +129,7 @@ client.on(Events.InteractionCreate, async interaction => {
     else if (interaction.commandName === "invites") await handleInviteCommand(interaction);
     else if (interaction.commandName === "builds") await handleBuildCommand(interaction);
     else if (interaction.commandName === "price" || interaction.commandName === "market") await handleNukaTraderCommand(interaction);
+    else if (interaction.commandName === "reactionrole") await handleReactionRoleCommand(interaction);
     else await handleModerationCommand(interaction);
   } catch (error) {
     console.error("Command error:", error);
