@@ -16,6 +16,7 @@ import "./database/models/DeveloperDmSettings";
 import "./database/models/DeveloperDmThread";
 import "./database/models/DeveloperDmLog";
 import "./database/models/WelcomeSettings";
+import "./database/models/ChangelogSettings";
 import { handleModerationCommand } from "./commands/moderation";
 import { handleNoteCommand, noteCommands } from "./commands/notes";
 import { codeCommands, handleCodeCommand } from "./commands/codes";
@@ -31,12 +32,13 @@ import { VerificationPanel } from "./database/models/VerificationPanel";
 import { announcementCommands, handleAnnouncementCommand } from "./commands/announcements";
 import { developerDmCommands, handleDeveloperDm, handleDeveloperDmButton, handleDeveloperDmCommand, handleDeveloperDmModal } from "./commands/developerDm";
 import { handleWelcomeCommand, sendWelcome, welcomeCommands } from "./commands/welcome";
+import { changelogCommands, handleChangelogCommand } from "./commands/changelog";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessages], partials: [Partials.Channel] });
 
 registerDiscordLogging(client);
 
-const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands, ...developerCommands, ...verificationCommands, ...announcementCommands, ...developerDmCommands, ...welcomeCommands].map(command => command.toJSON());
+const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands, ...developerCommands, ...verificationCommands, ...announcementCommands, ...developerDmCommands, ...welcomeCommands, ...changelogCommands].map(command => command.toJSON());
 
 async function registerCommands(): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.discord.token);
@@ -106,6 +108,7 @@ client.on(Events.InteractionCreate, async interaction => {
     else if (interaction.commandName === "announce") await handleAnnouncementCommand(interaction);
     else if (interaction.commandName === "dmrelay" || interaction.commandName === "dr") await handleDeveloperDmCommand(interaction);
     else if (interaction.commandName === "welcome") await handleWelcomeCommand(interaction);
+    else if (interaction.commandName === "changelog") await handleChangelogCommand(interaction);
     else await handleModerationCommand(interaction);
   } catch (error) {
     console.error("Command error:", error);
