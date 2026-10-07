@@ -14,7 +14,9 @@ function parse(html:string):FalloutBuild[]{
  }return out;
 }
 async function page(url:string){const r=await fetch(url,{headers:{"User-Agent":"Cerberus Discord Bot build search (FalloutBuilds.com integration)"},signal:AbortSignal.timeout(10000)});if(!r.ok)throw new Error("FalloutBuilds returned HTTP "+r.status);return r.text()}
-export async function getFalloutBuilds(force=false){if(!force&&cached&&Date.now()-cached.at<10*60_000)return cached.items;const html=await page(BASE);const items=parse(html);if(!items.length)throw new Error("FalloutBuilds page format was not recognized.");cached={at:Date.now(),items};return items}
+export async function getFalloutBuilds(force=false){if(!force&&cached&&Date.now()-cached.at<10*60_000)return cached.items;const first=await page(BASE);let items=parse(first);const lastLinks=[...first.matchAll(/href=["']([^"']*(?:\/page\/|paged=)\d+[^"']*)["'][^>]*>\s*Last/gi)];let pages=1;if(lastLinks.length){const nums=lastLinks[0][1].match(/(?:\/page\/|paged=)(\d+)/i);if(nums)pages=Math.min(Number(nums[1])||1,100)}else{pages=Math.ceil(1467/20)}
+ for(let p=2;p<=pages;p++){try{const html=await page(BASE+"page/"+p+"/");const found=parse(html);if(!found.length)break;items.push(...found)}catch{break}}
+ if(!items.length)throw new Error("FalloutBuilds page format was not recognized.");cached={at:Date.now(),items};return items}
 export async function searchFalloutBuilds(query:string){const q=query.toLowerCase().trim(),items=await getFalloutBuilds();return items.filter(b=>(b.title+" "+b.archetype+" "+b.author).toLowerCase().includes(q))}
 export async function falloutBuildsByArchetype(type:string){const q=type.toLowerCase();return (await getFalloutBuilds()).filter(b=>b.archetype.toLowerCase().includes(q))}
 export async function latestFalloutBuilds(){return (await getFalloutBuilds()).slice(0,10)}
