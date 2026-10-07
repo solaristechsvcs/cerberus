@@ -39,6 +39,7 @@ import { handleChangelogCommand } from "./commands/changelog";
 import { handleAntiRaidCommand, handleAntiRaidJoin } from "./commands/antiRaid";
 import { handleInviteCommand, handleInviteJoin, primeInviteCache, refreshInviteCache } from "./commands/invites";
 import { handleBuildCommand } from "./commands/builds";
+import { handleNukaTraderCommand } from "./commands/nukaTrader";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessages], partials: [Partials.Channel] });
 
@@ -123,6 +124,7 @@ client.on(Events.InteractionCreate, async interaction => {
     else if (interaction.commandName === "antiraid") await handleAntiRaidCommand(interaction);
     else if (interaction.commandName === "invites") await handleInviteCommand(interaction);
     else if (interaction.commandName === "builds") await handleBuildCommand(interaction);
+    else if (interaction.commandName === "price" || interaction.commandName === "market") await handleNukaTraderCommand(interaction);
     else await handleModerationCommand(interaction);
   } catch (error) {
     console.error("Command error:", error);
