@@ -12,5 +12,6 @@ import { antiRaidCommands } from "./commands/antiRaid";
 import { inviteCommands } from "./commands/invites";
 import { buildCommands } from "./commands/builds";
 import { nukaTraderCommands } from "./commands/nukaTrader";
+import { reactionRoleCommands } from "./commands/reactionRoles";
 
-export const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands, ...developerCommands, ...verificationCommands, ...announcementCommands, ...developerDmCommands, ...welcomeCommands, ...changelogCommands, ...antiRaidCommands, ...inviteCommands, ...buildCommands, ...nukaTraderCommands].map(command => command.toJSON());
+export const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands, ...developerCommands, ...verificationCommands, ...announcementCommands, ...developerDmCommands, ...welcomeCommands, ...changelogCommands, ...antiRaidCommands, ...inviteCommands, ...buildCommands, ...nukaTraderCommands, ...reactionRoleCommands].map(command => command.toJSON());
