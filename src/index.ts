@@ -41,7 +41,7 @@ import { handleAntiRaidCommand, handleAntiRaidJoin } from "./commands/antiRaid";
 import { handleInviteCommand, handleInviteJoin, primeInviteCache, refreshInviteCache } from "./commands/invites";
 import { handleBuildCommand } from "./commands/builds";
 import { handleNukaTraderCommand } from "./commands/nukaTrader";
-import { handleReactionRoleAdd, handleReactionRoleCommand, handleReactionRoleRemove } from "./commands/reactionRoles";
+import { handleReactionRoleButton, handleReactionRoleCommand } from "./commands/reactionRoles";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessages], partials: [Partials.Channel] });
 
@@ -89,8 +89,6 @@ client.on(Events.GuildMemberAdd, async member => {
 
 client.on(Events.InviteCreate, invite => { void refreshInviteCache(invite.guild).catch(()=>null); });
 client.on(Events.InviteDelete, invite => { if(invite.guild)void refreshInviteCache(invite.guild).catch(()=>null); });
-client.on(Events.MessageReactionAdd, (reaction, user) => { void handleReactionRoleAdd(reaction, user); });
-client.on(Events.MessageReactionRemove, (reaction, user) => { void handleReactionRoleRemove(reaction, user); });
 
 client.on(Events.MessageDelete, async message => {
   try {
@@ -111,6 +109,7 @@ client.on(Events.MessageCreate, async message => {
 
 client.on(Events.InteractionCreate, async interaction => {
   try {
+    if (interaction.isButton() && interaction.customId.startsWith("reactionrole:")) { await handleReactionRoleButton(interaction); return; }
     if (interaction.isButton() && interaction.customId.startsWith("ticket:")) { await handleTicketButton(interaction); return; }
     if (interaction.isButton() && interaction.customId.startsWith("verify:")) { await handleVerificationButton(interaction); return; }
     if (interaction.isButton() && interaction.customId.startsWith("developer-dm:")) { await handleDeveloperDmButton(interaction); return; }
