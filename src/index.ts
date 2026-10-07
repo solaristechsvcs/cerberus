@@ -17,6 +17,7 @@ import "./database/models/DeveloperDmThread";
 import "./database/models/DeveloperDmLog";
 import "./database/models/WelcomeSettings";
 import "./database/models/ChangelogSettings";
+import "./database/models/ChangelogEntry";
 import { handleModerationCommand } from "./commands/moderation";
 import { handleNoteCommand, noteCommands } from "./commands/notes";
 import { codeCommands, handleCodeCommand } from "./commands/codes";
