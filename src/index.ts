@@ -14,6 +14,7 @@ import "./database/models/VerificationPanel";
 import "./database/models/AnnouncementSettings";
 import "./database/models/DeveloperDmSettings";
 import "./database/models/DeveloperDmThread";
+import "./database/models/DeveloperDmLog";
 import "./database/models/WelcomeSettings";
 import { handleModerationCommand } from "./commands/moderation";
 import { handleNoteCommand, noteCommands } from "./commands/notes";
