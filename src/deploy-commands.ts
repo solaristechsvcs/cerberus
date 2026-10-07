@@ -1,14 +1,12 @@
 import { REST, Routes } from "discord.js";
 import { config } from "./config";
-import { moderationCommands } from "./commands/moderation";
-import { noteCommands } from "./commands/notes";
+import { commandData } from "./commandData";
 
 const rest = new REST({ version: "10" }).setToken(config.discord.token);
-const body = [...moderationCommands, ...noteCommands].map(command => command.toJSON());
 
 async function main(): Promise<void> {
-  await rest.put(Routes.applicationCommands(config.discord.clientId), { body });
-  console.log("Registered global slash commands for all guilds.");
+  await rest.put(Routes.applicationCommands(config.discord.clientId), { body: commandData });
+  console.log(`Registered ${commandData.length} global slash commands for all guilds. Restart the bot to clear legacy server-specific commands.`);
 }
 
 main().catch(error => {

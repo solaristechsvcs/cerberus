@@ -1,5 +1,6 @@
 import { Client, Events, GatewayIntentBits, Partials, REST, Routes } from "discord.js";
 import { config } from "./config";
+import { commandData } from "./commandData";
 import { connectDatabase } from "./database";
 import "./database/models/Warning";
 import "./database/models/ModerationCase";
@@ -21,29 +22,28 @@ import "./database/models/ChangelogEntry";
 import "./database/models/AntiRaidSettings";
 import "./database/models/InviteTrackingSettings";
 import { handleModerationCommand } from "./commands/moderation";
-import { handleNoteCommand, noteCommands } from "./commands/notes";
-import { codeCommands, handleCodeCommand } from "./commands/codes";
-import { moderationCommands } from "./commands/moderation";
+import { handleNoteCommand } from "./commands/notes";
+import { handleCodeCommand } from "./commands/codes";
 import { startDashboard } from "./dashboard";
 import { registerDiscordLogging } from "./logging/discordLogger";
 import { runDatabaseMigrations } from "./database/migrations";
-import { handleTicketButton, handleTicketCommand, ticketCommands } from "./commands/tickets";
+import { handleTicketButton, handleTicketCommand } from "./commands/tickets";
 import { TicketPanel } from "./database/models/TicketPanel";
-import { developerCommands, handleDeveloperCommand } from "./commands/developer";
-import { handleVerificationButton, handleVerificationCommand, verificationCommands } from "./commands/verification";
+import { handleDeveloperCommand } from "./commands/developer";
+import { handleVerificationButton, handleVerificationCommand } from "./commands/verification";
 import { VerificationPanel } from "./database/models/VerificationPanel";
-import { announcementCommands, handleAnnouncementCommand } from "./commands/announcements";
-import { developerDmCommands, handleDeveloperDm, handleDeveloperDmButton, handleDeveloperDmCommand, handleDeveloperDmModal } from "./commands/developerDm";
-import { handleWelcomeCommand, sendWelcome, welcomeCommands } from "./commands/welcome";
-import { changelogCommands, handleChangelogCommand } from "./commands/changelog";
-import { antiRaidCommands, handleAntiRaidCommand, handleAntiRaidJoin } from "./commands/antiRaid";
-import { handleInviteCommand, handleInviteJoin, inviteCommands, primeInviteCache, refreshInviteCache } from "./commands/invites";
+import { handleAnnouncementCommand } from "./commands/announcements";
+import { handleDeveloperDm, handleDeveloperDmButton, handleDeveloperDmCommand, handleDeveloperDmModal } from "./commands/developerDm";
+import { handleWelcomeCommand, sendWelcome } from "./commands/welcome";
+import { handleChangelogCommand } from "./commands/changelog";
+import { handleAntiRaidCommand, handleAntiRaidJoin } from "./commands/antiRaid";
+import { handleInviteCommand, handleInviteJoin, primeInviteCache, refreshInviteCache } from "./commands/invites";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessages], partials: [Partials.Channel] });
 
 registerDiscordLogging(client);
 
-const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands, ...developerCommands, ...verificationCommands, ...announcementCommands, ...developerDmCommands, ...welcomeCommands, ...changelogCommands, ...antiRaidCommands, ...inviteCommands].map(command => command.toJSON());
+
 
 async function registerCommands(): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.discord.token);
@@ -51,10 +51,10 @@ async function registerCommands(): Promise<void> {
   await rest.put(Routes.applicationCommands(config.discord.clientId), { body: commandData });
 
   for (const guild of client.guilds.cache.values()) {
-    await rest.put(Routes.applicationGuildCommands(config.discord.clientId, guild.id), { body: commandData });
+    await rest.put(Routes.applicationGuildCommands(config.discord.clientId, guild.id), { body: [] });
   }
 
-  console.log(`Registered ${commandData.length} slash commands globally and in ${client.guilds.cache.size} server(s).`);
+  console.log(`Registered ${commandData.length} global slash commands; cleared server-specific commands in ${client.guilds.cache.size} server(s).`);
 }
 
 client.once(Events.ClientReady, async readyClient => {
@@ -70,8 +70,8 @@ client.once(Events.ClientReady, async readyClient => {
 client.on(Events.GuildCreate, async guild => {
   try {
     const rest = new REST({ version: "10" }).setToken(config.discord.token);
-    await rest.put(Routes.applicationGuildCommands(config.discord.clientId, guild.id), { body: commandData });
-    console.log(`Registered slash commands in new server: ${guild.name}`);
+    await rest.put(Routes.applicationGuildCommands(config.discord.clientId, guild.id), { body: [] });
+    console.log(`Cleared server-specific slash commands in new server: ${guild.name}`);
     await primeInviteCache(guild).catch(()=>null);
   } catch (error) {
     console.error(`Slash command registration failed for ${guild.id}:`, error);
