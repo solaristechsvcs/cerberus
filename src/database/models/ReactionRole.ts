@@ -7,7 +7,10 @@ export class ReactionRole extends Model<InferAttributes<ReactionRole>, InferCrea
   declare channelId: string;
   declare messageId: string;
   declare roleId: string;
-  declare emoji: string;
+  declare emoji: CreationOptional<string>;
+  declare label: CreationOptional<string>;
+  declare panelTitle: CreationOptional<string>;
+  declare panelDescription: CreationOptional<string>;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
 }
@@ -18,7 +21,10 @@ ReactionRole.init({
   channelId: { type: DataTypes.STRING, allowNull: false },
   messageId: { type: DataTypes.STRING, allowNull: false },
   roleId: { type: DataTypes.STRING, allowNull: false },
-  emoji: { type: DataTypes.STRING, allowNull: false },
+  emoji: { type: DataTypes.STRING, allowNull: false, defaultValue: "" },
+  label: { type: DataTypes.STRING, allowNull: false, defaultValue: "Role" },
+  panelTitle: { type: DataTypes.STRING, allowNull: false, defaultValue: "Choose Your Roles" },
+  panelDescription: { type: DataTypes.TEXT, allowNull: false, defaultValue: "Use the buttons below to add or remove roles." },
   createdAt: DataTypes.DATE,
   updatedAt: DataTypes.DATE
-}, { sequelize, tableName: "reaction_roles", indexes: [{ unique: true, fields: ["guildId", "messageId", "emoji"] }] });
+}, { sequelize, tableName: "reaction_roles", indexes: [{ unique: true, fields: ["guildId", "messageId", "roleId"] }] });
