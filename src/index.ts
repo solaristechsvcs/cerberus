@@ -121,6 +121,7 @@ client.on(Events.InteractionCreate, async interaction => {
     else if (interaction.commandName === "changelog") await handleChangelogCommand(interaction);
     else if (interaction.commandName === "antiraid") await handleAntiRaidCommand(interaction);
     else if (interaction.commandName === "invites") await handleInviteCommand(interaction);
+    else if (interaction.commandName === "build") await handleBuildCommand(interaction);
     else await handleModerationCommand(interaction);
   } catch (error) {
     console.error("Command error:", error);
