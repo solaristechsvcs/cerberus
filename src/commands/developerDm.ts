@@ -30,7 +30,7 @@ export async function handleDeveloperDm(message:Message):Promise<void>{
   await channel.send({
    embeds:[new EmbedBuilder()
     .setTitle("Developer DM Conversation")
-    .setDescription("**User:** <@"+message.author.id+">\\n**Username:** "+message.author.tag+"\\n**User ID:** "+message.author.id+"\\n\\nUse **/dr** in this channel to reply. Normal messages in this channel are not sent to the user.")
+    .setDescription("**User:** <@"+message.author.id+">\n**Username:** "+message.author.tag+"\n**User ID:** "+message.author.id+"\n\nUse **/dr** in this channel to reply. Normal messages in this channel are not sent to the user.")
     .setColor(0x8f315c)
     .setThumbnail(message.author.displayAvatarURL())
     .setTimestamp()],
