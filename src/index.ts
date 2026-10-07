@@ -18,6 +18,7 @@ import "./database/models/DeveloperDmLog";
 import "./database/models/WelcomeSettings";
 import "./database/models/ChangelogSettings";
 import "./database/models/ChangelogEntry";
+import "./database/models/AntiRaidSettings";
 import { handleModerationCommand } from "./commands/moderation";
 import { handleNoteCommand, noteCommands } from "./commands/notes";
 import { codeCommands, handleCodeCommand } from "./commands/codes";
@@ -34,12 +35,13 @@ import { announcementCommands, handleAnnouncementCommand } from "./commands/anno
 import { developerDmCommands, handleDeveloperDm, handleDeveloperDmButton, handleDeveloperDmCommand, handleDeveloperDmModal } from "./commands/developerDm";
 import { handleWelcomeCommand, sendWelcome, welcomeCommands } from "./commands/welcome";
 import { changelogCommands, handleChangelogCommand } from "./commands/changelog";
+import { antiRaidCommands, handleAntiRaidCommand, handleAntiRaidJoin } from "./commands/antiRaid";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessages], partials: [Partials.Channel] });
 
 registerDiscordLogging(client);
 
-const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands, ...developerCommands, ...verificationCommands, ...announcementCommands, ...developerDmCommands, ...welcomeCommands, ...changelogCommands].map(command => command.toJSON());
+const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands, ...developerCommands, ...verificationCommands, ...announcementCommands, ...developerDmCommands, ...welcomeCommands, ...changelogCommands, ...antiRaidCommands].map(command => command.toJSON());
 
 async function registerCommands(): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.discord.token);
@@ -73,7 +75,7 @@ client.on(Events.GuildCreate, async guild => {
 });
 
 client.on(Events.GuildMemberAdd, async member => {
-  try { await sendWelcome(member); }
+  try { const blocked=await handleAntiRaidJoin(member); if(blocked)return; await sendWelcome(member); }
   catch (error) { console.error("Welcome message failed:", error); }
 });
 
@@ -110,6 +112,7 @@ client.on(Events.InteractionCreate, async interaction => {
     else if (interaction.commandName === "dmrelay" || interaction.commandName === "dr") await handleDeveloperDmCommand(interaction);
     else if (interaction.commandName === "welcome") await handleWelcomeCommand(interaction);
     else if (interaction.commandName === "changelog") await handleChangelogCommand(interaction);
+    else if (interaction.commandName === "antiraid") await handleAntiRaidCommand(interaction);
     else await handleModerationCommand(interaction);
   } catch (error) {
     console.error("Command error:", error);
