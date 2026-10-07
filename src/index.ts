@@ -19,6 +19,7 @@ import "./database/models/WelcomeSettings";
 import "./database/models/ChangelogSettings";
 import "./database/models/ChangelogEntry";
 import "./database/models/AntiRaidSettings";
+import "./database/models/InviteTrackingSettings";
 import { handleModerationCommand } from "./commands/moderation";
 import { handleNoteCommand, noteCommands } from "./commands/notes";
 import { codeCommands, handleCodeCommand } from "./commands/codes";
@@ -36,12 +37,13 @@ import { developerDmCommands, handleDeveloperDm, handleDeveloperDmButton, handle
 import { handleWelcomeCommand, sendWelcome, welcomeCommands } from "./commands/welcome";
 import { changelogCommands, handleChangelogCommand } from "./commands/changelog";
 import { antiRaidCommands, handleAntiRaidCommand, handleAntiRaidJoin } from "./commands/antiRaid";
+import { handleInviteCommand, handleInviteJoin, inviteCommands, primeInviteCache, refreshInviteCache } from "./commands/invites";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessages], partials: [Partials.Channel] });
 
 registerDiscordLogging(client);
 
-const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands, ...developerCommands, ...verificationCommands, ...announcementCommands, ...developerDmCommands, ...welcomeCommands, ...changelogCommands, ...antiRaidCommands].map(command => command.toJSON());
+const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands, ...developerCommands, ...verificationCommands, ...announcementCommands, ...developerDmCommands, ...welcomeCommands, ...changelogCommands, ...antiRaidCommands, ...inviteCommands].map(command => command.toJSON());
 
 async function registerCommands(): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.discord.token);
@@ -57,6 +59,7 @@ async function registerCommands(): Promise<void> {
 
 client.once(Events.ClientReady, async readyClient => {
   console.log(`Logged in as ${readyClient.user.tag}`);
+  for(const guild of readyClient.guilds.cache.values())await primeInviteCache(guild).catch(()=>null);
   try {
     await registerCommands();
   } catch (error) {
@@ -69,15 +72,19 @@ client.on(Events.GuildCreate, async guild => {
     const rest = new REST({ version: "10" }).setToken(config.discord.token);
     await rest.put(Routes.applicationGuildCommands(config.discord.clientId, guild.id), { body: commandData });
     console.log(`Registered slash commands in new server: ${guild.name}`);
+    await primeInviteCache(guild).catch(()=>null);
   } catch (error) {
     console.error(`Slash command registration failed for ${guild.id}:`, error);
   }
 });
 
 client.on(Events.GuildMemberAdd, async member => {
-  try { const blocked=await handleAntiRaidJoin(member); if(blocked)return; await sendWelcome(member); }
+  try { await handleInviteJoin(member); const blocked=await handleAntiRaidJoin(member); if(blocked)return; await sendWelcome(member); }
   catch (error) { console.error("Welcome message failed:", error); }
 });
+
+client.on(Events.InviteCreate, invite => { void refreshInviteCache(invite.guild).catch(()=>null); });
+client.on(Events.InviteDelete, invite => { if(invite.guild)void refreshInviteCache(invite.guild).catch(()=>null); });
 
 client.on(Events.MessageDelete, async message => {
   try {
@@ -113,6 +120,7 @@ client.on(Events.InteractionCreate, async interaction => {
     else if (interaction.commandName === "welcome") await handleWelcomeCommand(interaction);
     else if (interaction.commandName === "changelog") await handleChangelogCommand(interaction);
     else if (interaction.commandName === "antiraid") await handleAntiRaidCommand(interaction);
+    else if (interaction.commandName === "invites") await handleInviteCommand(interaction);
     else await handleModerationCommand(interaction);
   } catch (error) {
     console.error("Command error:", error);
