@@ -21,3 +21,5 @@ export async function searchFalloutBuilds(query:string){const q=query.toLowerCas
 export async function falloutBuildsByArchetype(type:string){const q=type.toLowerCase();return (await getFalloutBuilds()).filter(b=>b.archetype.toLowerCase().includes(q))}
 export async function latestFalloutBuilds(){return (await getFalloutBuilds()).slice(0,10)}
 export async function topFalloutBuilds(){return [...await getFalloutBuilds()].sort((a,b)=>b.votes-a.votes).slice(0,10)}
+
+export async function searchFalloutBuildsByType(type:string,query=""){const items=await getFalloutBuilds(),t=type.toLowerCase().trim(),q=query.toLowerCase().trim();return items.filter(b=>{const hay=(b.title+" "+b.archetype+" "+b.author).toLowerCase();const typeMatch=t==="other"?!["commando","heavy","rifleman","shotgun","melee","pistol","archer"].some(x=>b.archetype.toLowerCase().includes(x)):hay.includes(t);return typeMatch&&(!q||hay.includes(q))})}
