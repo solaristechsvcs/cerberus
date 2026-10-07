@@ -2,6 +2,14 @@ import { ChannelType, ChatInputCommandInteraction, EmbedBuilder, GuildMember, Pe
 import { AntiRaidSettings } from "../database/models/AntiRaidSettings";
 const joins=new Map<string,number[]>();
 
+// Used by both the slash command and dashboard to end raid mode and reset detection.
+export async function stopAntiRaid(settings:AntiRaidSettings, disable=false):Promise<void>{
+ if(disable)settings.enabled=false;
+ settings.activeUntil=null;
+ await settings.save();
+ joins.delete(settings.guildId);
+}
+
 export const antiRaidCommands=[new SlashCommandBuilder().setName("antiraid").setDescription("Configure Cerberus anti-raid protection.").setDefaultMemberPermissions(PermissionFlagsBits.Administrator.toString())
  .addSubcommand(s=>s.setName("setup").setDescription("Configure and enable anti-raid.")
   .addIntegerOption(o=>o.setName("threshold").setDescription("Joins required to trigger protection").setMinValue(3).setMaxValue(100).setRequired(true))
@@ -33,7 +41,7 @@ export async function handleAntiRaidCommand(i:ChatInputCommandInteraction):Promi
  if(!i.guild)return void await i.reply({content:"Server only.",ephemeral:true});const sub=i.options.getSubcommand();const [s]=await AntiRaidSettings.findOrCreate({where:{guildId:i.guild.id}});
  if(sub==="setup"){s.joinThreshold=i.options.getInteger("threshold",true);s.windowSeconds=i.options.getInteger("window",true);s.action=i.options.getString("action",true) as any;s.alertChannelId=i.options.getChannel("alerts")?.id||null;s.lockdownMinutes=i.options.getInteger("duration")||10;s.enabled=true;await s.save();return void await i.reply({content:"Anti-raid enabled: "+s.joinThreshold+" joins / "+s.windowSeconds+"s, action **"+s.action+"**, raid mode "+s.lockdownMinutes+"m.",ephemeral:true});}
  if(sub==="enable"){s.enabled=true;await s.save();return void await i.reply({content:"Anti-raid enabled.",ephemeral:true});}
- if(sub==="disable"){s.enabled=false;s.activeUntil=null;await s.save();joins.delete(i.guild.id);return void await i.reply({content:"Anti-raid disabled.",ephemeral:true});}
- if(sub==="stop"){s.activeUntil=null;await s.save();joins.delete(i.guild.id);return void await i.reply({content:"Active raid mode ended.",ephemeral:true});}
+ if(sub==="disable"){await stopAntiRaid(s,true);return void await i.reply({content:"Anti-raid disabled.",ephemeral:true});}
+ if(sub==="stop"){await stopAntiRaid(s);return void await i.reply({content:"Active raid mode ended.",ephemeral:true});}
  const active=!!s.activeUntil&&s.activeUntil.getTime()>Date.now();await i.reply({content:"**Anti-Raid:** "+(s.enabled?"Enabled":"Disabled")+"\n**Trigger:** "+s.joinThreshold+" joins / "+s.windowSeconds+" seconds\n**Action:** "+s.action+"\n**Raid duration:** "+s.lockdownMinutes+" minutes\n**Currently active:** "+(active?"Yes, until <t:"+Math.floor(s.activeUntil!.getTime()/1000)+":R>":"No"),ephemeral:true});
 }
