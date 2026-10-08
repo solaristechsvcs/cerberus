@@ -81,6 +81,27 @@ function normalizeButtonEmoji(guild: Guild, input: string): string {
   throw new Error("Invalid button emoji "+JSON.stringify(value)+". Paste one emoji such as 🎮, a custom emoji such as <:name:123456789012345678>, or leave it blank. Common standard shortcodes such as :test_tube: and this server's custom :name: emoji are supported. For other standard emoji, paste the actual symbol.");
 }
 
+async function validateCustomButtonEmoji(guild: Guild, value: string, externalAllowed: boolean): Promise<string> {
+  const custom=/^<(a?):([A-Za-z0-9_]+):(\d{15,25})>$/.exec(value);
+  if(!custom)return value;
+  const id=custom[3];
+  const cached=guild.client.emojis.cache.get(id);
+  if(cached){
+    const emoji=await cached.guild.emojis.fetch(id,{force:true}).catch(()=>null);
+    if(!emoji||emoji.available===false)throw new Error("That custom emoji was deleted or is unavailable in its source server. Choose another emoji.");
+    if(emoji.guild.id!==guild.id&&!externalAllowed)throw new Error('Enable "Use External Emojis" for Cerberus in the publish channel to use this emoji.');
+    if(emoji.roles.cache.size){
+      const member=await emoji.guild.members.fetchMe();
+      if(!emoji.roles.cache.some(role=>member.roles.cache.has(role.id)))throw new Error("Cerberus does not have a role allowed to use that emoji in its source server.");
+    }
+    return "<"+(emoji.animated?"a":"")+":"+emoji.name+":"+emoji.id+">";
+  }
+  // Application-owned emoji can be used without a shared source guild.
+  const applicationEmoji=await guild.client.application?.emojis.fetch(id).catch(()=>null);
+  if(applicationEmoji)return "<"+(applicationEmoji.animated?"a":"")+":"+applicationEmoji.name+":"+applicationEmoji.id+">";
+  throw new Error("Cerberus cannot access custom emoji "+id+". Add Cerberus to the server that owns it, upload a copy to this server, or use a standard emoji. Your personal Nitro emoji access does not grant the bot access.");
+}
+
 function componentEmoji(value: string) {
   const custom=/^<(a?):([A-Za-z0-9_]+):(\d{15,25})>$/.exec(value);
   return custom ? {id:custom[3],name:custom[2],animated:custom[1]==="a"} : {name:value};
@@ -106,6 +127,11 @@ export async function publishReactionRolePanel(guild:Guild,channelId:string,titl
   buttons=buttons.map((button,index)=>{try{return {...button,emoji:normalizeButtonEmoji(guild,button.emoji||"")}}catch(e){throw new Error("Button "+(index+1)+": "+(e instanceof Error?e.message:String(e)))}});
   const channel=await guild.channels.fetch(channelId).catch(()=>null);if(!channel?.isTextBased()||!("send" in channel))throw new Error("Select a text channel.");
   const me=guild.members.me;if(!me)throw new Error("Cerberus member could not be resolved.");
+  const externalAllowed=channel.permissionsFor(me)?.has(PermissionFlagsBits.UseExternalEmojis)??false;
+  for(let index=0;index<buttons.length;index++){
+    try{buttons[index].emoji=await validateCustomButtonEmoji(guild,buttons[index].emoji||"",externalAllowed)}
+    catch(e){throw new Error("Button "+(index+1)+": "+(e instanceof Error?e.message:String(e)))}
+  }
   for(const item of buttons){const role=await guild.roles.fetch(item.roleId).catch(()=>null);if(!role||role.managed||role.position>=me.roles.highest.position)throw new Error("Cerberus must be above every selected role.");}
   const message=await channel.send({embeds:[new EmbedBuilder().setTitle(title.slice(0,256)).setDescription(description.slice(0,4000)).setColor(0x8f315c)]});
   try {
