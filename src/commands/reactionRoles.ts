@@ -1,11 +1,31 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChatInputCommandInteraction, EmbedBuilder, Guild, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
 import { ReactionRole } from "../database/models/ReactionRole";
 
+const unicodeButtonEmoji = new RegExp("^(?:\\p{RGI_Emoji}|\\p{Extended_Pictographic}\\uFE0F?)$", "v");
+
+function normalizeButtonEmoji(guild: Guild, input: string): string {
+  const value=input.trim();
+  if(!value)return "";
+  const mention=/^<(a?):([A-Za-z0-9_]+):(\d{15,25})>$/.exec(value);
+  if(mention)return value;
+  if(/^\d{15,25}$/.test(value))return "<:emoji:"+value+">";
+  if(unicodeButtonEmoji.test(value))return value;
+  const name=/^:([A-Za-z0-9_]+):$/.exec(value)?.[1] ?? value;
+  const custom=guild.emojis.cache.find(emoji=>emoji.name===name);
+  if(custom)return "<"+(custom.animated?"a":"")+":"+custom.name+":"+custom.id+">";
+  throw new Error("Invalid button emoji "+JSON.stringify(value)+". Paste one emoji such as 🎮, a custom emoji such as <:name:123456789012345678>, or leave it blank. :name: is supported for this server's custom emoji.");
+}
+
+function componentEmoji(value: string) {
+  const custom=/^<(a?):([A-Za-z0-9_]+):(\d{15,25})>$/.exec(value);
+  return custom ? {id:custom[3],name:custom[2],animated:custom[1]==="a"} : {name:value};
+}
+
 function panelComponents(rows: ReactionRole[]) {
   const groups: ActionRowBuilder<ButtonBuilder>[] = [];
   for (let i=0;i<rows.length;i+=5) groups.push(new ActionRowBuilder<ButtonBuilder>().addComponents(...rows.slice(i,i+5).map(r => {
     const b=new ButtonBuilder().setCustomId("reactionrole:"+r.id).setLabel((r.label||"Role").slice(0,80)).setStyle(ButtonStyle.Primary);
-    if(r.emoji) b.setEmoji(r.emoji);
+    if(r.emoji) b.setEmoji(componentEmoji(r.emoji));
     return b;
   })));
   return groups.slice(0,5);
@@ -18,12 +38,20 @@ async function updatePanel(guild: Guild,messageId:string){
 }
 export async function publishReactionRolePanel(guild:Guild,channelId:string,title:string,description:string,buttons:{roleId:string,label:string,emoji?:string}[]){
   if(!buttons.length||buttons.length>25)throw new Error("A panel needs 1 to 25 role buttons.");
+  buttons=buttons.map((button,index)=>{try{return {...button,emoji:normalizeButtonEmoji(guild,button.emoji||"")}}catch(e){throw new Error("Button "+(index+1)+": "+(e instanceof Error?e.message:String(e)))}});
   const channel=await guild.channels.fetch(channelId).catch(()=>null);if(!channel?.isTextBased()||!("send" in channel))throw new Error("Select a text channel.");
   const me=guild.members.me;if(!me)throw new Error("Cerberus member could not be resolved.");
   for(const item of buttons){const role=await guild.roles.fetch(item.roleId).catch(()=>null);if(!role||role.managed||role.position>=me.roles.highest.position)throw new Error("Cerberus must be above every selected role.");}
   const message=await channel.send({embeds:[new EmbedBuilder().setTitle(title.slice(0,256)).setDescription(description.slice(0,4000)).setColor(0x8f315c)]});
-  const rows=await Promise.all(buttons.map(b=>ReactionRole.create({guildId:guild.id,channelId,messageId:message.id,roleId:b.roleId,label:b.label.slice(0,80),emoji:(b.emoji||"").trim(),panelTitle:title.slice(0,256),panelDescription:description.slice(0,4000)})));
+  try {
+  const rows: ReactionRole[]=[];
+  for(const b of buttons)rows.push(await ReactionRole.create({guildId:guild.id,channelId,messageId:message.id,roleId:b.roleId,label:b.label.slice(0,80),emoji:(b.emoji||"").trim(),panelTitle:title.slice(0,256),panelDescription:description.slice(0,4000)}));
   await message.edit({components:panelComponents(rows)});return message;
+  } catch(e) {
+    await message.delete().catch(()=>null);
+    await ReactionRole.destroy({where:{guildId:guild.id,messageId:message.id}});
+    throw e;
+  }
 }
 export const reactionRoleCommands=[new SlashCommandBuilder().setName("reactionrole").setDescription("Create button role panels").setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
  .addSubcommand(s=>s.setName("panel").setDescription("Create a role panel with one button").addChannelOption(o=>o.setName("channel").setDescription("Publish channel").setRequired(true)).addStringOption(o=>o.setName("title").setDescription("Embed title").setRequired(true).setMaxLength(256)).addStringOption(o=>o.setName("description").setDescription("Embed description").setRequired(true).setMaxLength(4000)).addRoleOption(o=>o.setName("role").setDescription("Role for the first button").setRequired(true)).addStringOption(o=>o.setName("label").setDescription("Button label").setRequired(true).setMaxLength(80)).addStringOption(o=>o.setName("emoji").setDescription("Optional button emoji")))
