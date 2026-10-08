@@ -87,8 +87,8 @@ client.on(Events.GuildMemberAdd, async member => {
   catch (error) { console.error("Welcome message failed:", error); }
 });
 
-client.on(Events.InviteCreate, invite => { void refreshInviteCache(invite.guild).catch(()=>null); });
-client.on(Events.InviteDelete, invite => { if(invite.guild)void refreshInviteCache(invite.guild).catch(()=>null); });
+client.on(Events.InviteCreate, invite => { const guild=invite.guild?client.guilds.cache.get(invite.guild.id):undefined;if(guild)void refreshInviteCache(guild).catch(()=>null); });
+client.on(Events.InviteDelete, invite => { const guild=invite.guild?client.guilds.cache.get(invite.guild.id):undefined;if(guild)void refreshInviteCache(guild).catch(()=>null); });
 
 client.on(Events.MessageDelete, async message => {
   try {
@@ -132,6 +132,7 @@ client.on(Events.InteractionCreate, async interaction => {
     else await handleModerationCommand(interaction);
   } catch (error) {
     console.error("Command error:", error);
+    if (!interaction.isRepliable()) return;
     const message = { content: "Something went wrong while executing that command.", ephemeral: true };
     if (interaction.replied || interaction.deferred) await interaction.followUp(message);
     else await interaction.reply(message);

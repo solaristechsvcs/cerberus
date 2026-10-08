@@ -108,7 +108,7 @@ async function sendTicketTranscript(guild:any,ticket:Ticket,channel:any,closedBy
  const transcriptUrl=baseUrl+"/transcripts/"+accessToken;
  const user=await guild.client.users.fetch(ticket.userId).catch(()=>null);
  if(user){
-  await user.send({embeds:[new EmbedBuilder().setTitle("Your Ticket Transcript").setDescription("Your ticket in **"+guild.name+"** has been closed.\n\n[View your transcript]("+transcriptUrl+")").setColor(0x8f315c).setTimestamp()]}).catch(error=>console.warn("Could not DM ticket transcript to "+ticket.userId+":",error));
+  await user.send({embeds:[new EmbedBuilder().setTitle("Your Ticket Transcript").setDescription("Your ticket in **"+guild.name+"** has been closed.\n\n[View your transcript]("+transcriptUrl+")").setColor(0x8f315c).setTimestamp()]}).catch((error:unknown)=>console.warn("Could not DM ticket transcript to "+ticket.userId+":",error));
  }
  const settings=await TicketSettings.findByPk(guild.id);
  if(!settings?.logChannelId)return;

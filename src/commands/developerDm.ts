@@ -61,7 +61,7 @@ export async function handleDeveloperDmCommand(i:ChatInputCommandInteraction):Pr
 export async function handleDeveloperDmButton(i:ButtonInteraction):Promise<void>{
  if(i.customId!=="developer-dm:close")return;
  if(!globalAdmin(i.user.id))return void await i.reply({content:"Only Cerberus global administrators can close developer DM conversations.",ephemeral:true});
- if(!i.guild)return void await i.reply({content:"This conversation cannot be closed here.",ephemeral:true});
+ if(!i.guild||!i.channelId)return void await i.reply({content:"This conversation cannot be closed here.",ephemeral:true});
  const thread=await DeveloperDmThread.findOne({where:{channelId:i.channelId,guildId:i.guild.id}});
  if(!thread)return void await i.reply({content:"This developer DM conversation is no longer active.",ephemeral:true});
  const modal=new ModalBuilder().setCustomId("developer-dm:close-modal").setTitle("Close Developer Conversation");
