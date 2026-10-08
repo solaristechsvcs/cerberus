@@ -3,6 +3,9 @@ import "./models/Warning";
 import "./models/ModerationCase";
 import "./models/GuildSettings";
 import "./models/UserNote";
+import "./models/SuggestionSettings";
+import "./models/SuggestionPanel";
+import "./models/Suggestion";
 
 async function main(): Promise<void> {
   await connectDatabase();

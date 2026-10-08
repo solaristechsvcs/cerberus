@@ -42,6 +42,10 @@ import { handleInviteCommand, handleInviteJoin, primeInviteCache, refreshInviteC
 import { handleBuildCommand } from "./commands/builds";
 import { handleNukaTraderCommand } from "./commands/nukaTrader";
 import { handleReactionRoleButton, handleReactionRoleCommand } from "./commands/reactionRoles";
+import { handleSuggestionButton, handleSuggestionModal } from "./commands/suggestions";
+import { SuggestionPanel } from "./database/models/SuggestionPanel";
+import "./database/models/SuggestionSettings";
+import "./database/models/Suggestion";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessages], partials: [Partials.Channel] });
 
@@ -92,6 +96,7 @@ client.on(Events.InviteDelete, invite => { const guild=invite.guild?client.guild
 
 client.on(Events.MessageDelete, async message => {
   try {
+    await SuggestionPanel.destroy({ where: { guildId: message.guildId ?? "", messageId: message.id } });
     await TicketPanel.destroy({ where: { guildId: message.guildId ?? "", messageId: message.id } });
     await VerificationPanel.destroy({ where: { guildId: message.guildId ?? "", messageId: message.id } });
   } catch (error) {
@@ -109,6 +114,8 @@ client.on(Events.MessageCreate, async message => {
 
 client.on(Events.InteractionCreate, async interaction => {
   try {
+    if (interaction.isButton() && interaction.customId.startsWith("suggestion:")) { await handleSuggestionButton(interaction); return; }
+    if (interaction.isModalSubmit() && interaction.customId.startsWith("suggestion:")) { await handleSuggestionModal(interaction); return; }
     if (interaction.isButton() && interaction.customId.startsWith("reactionrole:")) { await handleReactionRoleButton(interaction); return; }
     if (interaction.isButton() && interaction.customId.startsWith("ticket:")) { await handleTicketButton(interaction); return; }
     if (interaction.isButton() && interaction.customId.startsWith("verify:")) { await handleVerificationButton(interaction); return; }
