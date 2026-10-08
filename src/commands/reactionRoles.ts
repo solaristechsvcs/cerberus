@@ -3,6 +3,69 @@ import { ReactionRole } from "../database/models/ReactionRole";
 
 const unicodeButtonEmoji = new RegExp("^(?:\\p{RGI_Emoji}|\\p{Extended_Pictographic}\\uFE0F?)$", "v");
 
+const standardButtonEmoji: Record<string,string> = {
+  "test_tube": "🧪",
+  "video_game": "🎮",
+  "bell": "🔔",
+  "shopping_cart": "🛒",
+  "tada": "🎉",
+  "radioactive": "☢️",
+  "radioactive_sign": "☢️",
+  "warning": "⚠️",
+  "white_check_mark": "✅",
+  "x": "❌",
+  "heart": "❤️",
+  "star": "⭐",
+  "fire": "🔥",
+  "rocket": "🚀",
+  "tools": "🛠️",
+  "shield": "🛡️",
+  "loudspeaker": "📢",
+  "mega": "📣",
+  "trophy": "🏆",
+  "calendar": "📅",
+  "speech_balloon": "💬",
+  "books": "📚",
+  "art": "🎨",
+  "musical_note": "🎵",
+  "headphones": "🎧",
+  "computer": "💻",
+  "robot": "🤖",
+  "robot_face": "🤖",
+  "thumbsup": "👍",
+  "+1": "👍",
+  "thumbsdown": "👎",
+  "-1": "👎",
+  "smile": "😄",
+  "grinning": "😀",
+  "laughing": "😆",
+  "joy": "😂",
+  "wave": "👋",
+  "eyes": "👀",
+  "check": "✔️",
+  "ticket": "🎫",
+  "tickets": "🎟️",
+  "gear": "⚙️",
+  "wrench": "🔧",
+  "hammer": "🔨",
+  "lock": "🔒",
+  "unlock": "🔓",
+  "key": "🔑",
+  "link": "🔗",
+  "globe_with_meridians": "🌐",
+  "earth_americas": "🌎",
+  "crossed_swords": "⚔️",
+  "dagger": "🗡️",
+  "moneybag": "💰",
+  "gem": "💎",
+  "gift": "🎁",
+  "confetti_ball": "🎊",
+  "sparkles": "✨",
+  "zap": "⚡",
+  "bulb": "💡",
+  "beaker": "🧪"
+};
+
 function normalizeButtonEmoji(guild: Guild, input: string): string {
   const value=input.trim();
   if(!value)return "";
@@ -11,9 +74,11 @@ function normalizeButtonEmoji(guild: Guild, input: string): string {
   if(/^\d{15,25}$/.test(value))return "<:emoji:"+value+">";
   if(unicodeButtonEmoji.test(value))return value;
   const name=/^:([A-Za-z0-9_]+):$/.exec(value)?.[1] ?? value;
+  const shortcode=/^:([^:]+):$/.exec(value)?.[1];
+  if(shortcode && Object.prototype.hasOwnProperty.call(standardButtonEmoji,shortcode))return standardButtonEmoji[shortcode];
   const custom=guild.emojis.cache.find(emoji=>emoji.name===name);
   if(custom)return "<"+(custom.animated?"a":"")+":"+custom.name+":"+custom.id+">";
-  throw new Error("Invalid button emoji "+JSON.stringify(value)+". Paste one emoji such as 🎮, a custom emoji such as <:name:123456789012345678>, or leave it blank. :name: is supported for this server's custom emoji.");
+  throw new Error("Invalid button emoji "+JSON.stringify(value)+". Paste one emoji such as 🎮, a custom emoji such as <:name:123456789012345678>, or leave it blank. Common standard shortcodes such as :test_tube: and this server's custom :name: emoji are supported. For other standard emoji, paste the actual symbol.");
 }
 
 function componentEmoji(value: string) {
