@@ -46,6 +46,8 @@ import { handleSuggestionButton, handleSuggestionModal } from "./commands/sugges
 import { SuggestionPanel } from "./database/models/SuggestionPanel";
 import "./database/models/SuggestionSettings";
 import "./database/models/Suggestion";
+import { handlePollButton, handlePollCommand, startPollExpiry } from "./commands/polls";
+let pollExpiry:ReturnType<typeof startPollExpiry>|undefined;
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessages], partials: [Partials.Channel] });
 
@@ -67,6 +69,7 @@ async function registerCommands(): Promise<void> {
 
 client.once(Events.ClientReady, async readyClient => {
   console.log(`Logged in as ${readyClient.user.tag}`);
+  pollExpiry=startPollExpiry(client);
   for(const guild of readyClient.guilds.cache.values())await primeInviteCache(guild).catch(()=>null);
   try {
     await registerCommands();
@@ -114,6 +117,7 @@ client.on(Events.MessageCreate, async message => {
 
 client.on(Events.InteractionCreate, async interaction => {
   try {
+    if (interaction.isButton() && interaction.customId.startsWith("poll:")) { await handlePollButton(interaction); return; }
     if (interaction.isButton() && interaction.customId.startsWith("suggestion:")) { await handleSuggestionButton(interaction); return; }
     if (interaction.isModalSubmit() && interaction.customId.startsWith("suggestion:")) { await handleSuggestionModal(interaction); return; }
     if (interaction.isButton() && interaction.customId.startsWith("reactionrole:")) { await handleReactionRoleButton(interaction); return; }
@@ -135,6 +139,7 @@ client.on(Events.InteractionCreate, async interaction => {
     else if (interaction.commandName === "invites") await handleInviteCommand(interaction);
     else if (interaction.commandName === "builds") await handleBuildCommand(interaction);
     else if (interaction.commandName === "price" || interaction.commandName === "market") await handleNukaTraderCommand(interaction);
+    else if (interaction.commandName === "poll") await handlePollCommand(interaction);
     else if (interaction.commandName === "reactionrole") await handleReactionRoleCommand(interaction);
     else await handleModerationCommand(interaction);
   } catch (error) {
@@ -148,6 +153,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
 async function shutdown(signal: string): Promise<void> {
   console.log(`Received ${signal}; shutting down.`);
+  if(pollExpiry)clearInterval(pollExpiry);
   client.destroy();
   process.exit(0);
 }

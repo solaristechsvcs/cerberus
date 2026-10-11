@@ -14,4 +14,6 @@ import { buildCommands } from "./commands/builds";
 import { nukaTraderCommands } from "./commands/nukaTrader";
 import { reactionRoleCommands } from "./commands/reactionRoles";
 
-export const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands, ...developerCommands, ...verificationCommands, ...announcementCommands, ...developerDmCommands, ...welcomeCommands, ...changelogCommands, ...antiRaidCommands, ...inviteCommands, ...buildCommands, ...nukaTraderCommands, ...reactionRoleCommands].map(command => command.toJSON());
+import { pollCommands } from "./commands/polls";
+
+export const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands, ...developerCommands, ...verificationCommands, ...announcementCommands, ...developerDmCommands, ...welcomeCommands, ...changelogCommands, ...antiRaidCommands, ...inviteCommands, ...buildCommands, ...nukaTraderCommands, ...reactionRoleCommands, ...pollCommands].map(command => command.toJSON());
