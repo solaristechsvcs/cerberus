@@ -1,4 +1,5 @@
 import { connectDatabase, sequelize } from "./index";
+import "../dashboard/authStore";
 import "./models/Warning";
 import "./models/ModerationCase";
 import "./models/GuildSettings";

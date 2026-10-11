@@ -2,7 +2,8 @@ import express, { Request, Response, NextFunction } from "express";
 import { registerSuggestionRoutes } from "./suggestions";
 import { registerPollRoutes } from "./polls";
 import { registerLiveNotificationRoutes } from "./liveNotifications";
-import crypto from "node:crypto";
+import { registerAuth, DashboardSession } from "./auth";
+import { authStore } from "./authStore";
 import { config } from "../config";
 import { ModerationCase } from "../database/models/ModerationCase";
 import { UserNote } from "../database/models/UserNote";
@@ -34,18 +35,11 @@ import { ReactionRole } from "../database/models/ReactionRole";
 import { deleteReactionRolePanel, publishReactionRolePanel } from "../commands/reactionRoles";
 
 type DiscordGuild = { id: string; name: string; permissions: string; owner?: boolean };
-type Session = { userId: string; username: string; guilds: DiscordGuild[]; expiresAt: number };
-const sessions = new Map<string, Session>();
+type Session = DashboardSession;
 const ADMIN = 0x8n;
 
-function cookieValue(req: Request, name: string): string | null {
-  const header = req.headers.cookie ?? "";
-  const match = header.split(";").map(v => v.trim()).find(v => v.startsWith(`${name}=`));
-  return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
-}
-
-async function discordToken(code: string): Promise<any> {
-  const body = new URLSearchParams({ client_id: config.discord.clientId, client_secret: config.dashboard.clientSecret, grant_type: "authorization_code", code, redirect_uri: `${config.dashboard.publicUrl.replace(/\/$/, "")}/oauth/callback` });
+async function discordToken(code: string, callback: string): Promise<any> {
+  const body = new URLSearchParams({ client_id: config.discord.clientId, client_secret: config.dashboard.clientSecret, grant_type: "authorization_code", code, redirect_uri: callback });
   const response = await fetch("https://discord.com/api/v10/oauth2/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
   if (!response.ok) throw new Error("Discord OAuth token exchange failed.");
   return response.json();
@@ -58,11 +52,7 @@ async function discordGet<T>(path: string, token: string): Promise<T> {
 }
 
 function session(req: Request): Session | null {
-  const id = cookieValue(req, "cerberus_session");
-  if (!id) return null;
-  const value = sessions.get(id);
-  if (!value || value.expiresAt < Date.now()) { sessions.delete(id); return null; }
-  return value;
+  return req.res?.locals.dashboardSession ?? null;
 }
 
 function requireSession(req: Request, res: Response, next: NextFunction): void {
@@ -322,6 +312,12 @@ export function startDashboard(client: Client): void {
   if (!config.dashboard.clientSecret || config.dashboard.clientSecret === "CHANGE_ME") { console.warn("Dashboard disabled: set dashboard.clientSecret in config.js."); return; }
   const app = express();
   app.use(express.json());
+  registerAuth(app, { publicUrl: config.dashboard.publicUrl, clientId: config.discord.clientId, trustProxy: config.dashboard.trustProxy }, authStore, async (code, callback) => {
+    const token = await discordToken(code, callback);
+    const user = await discordGet<{id:string;username:string}>("/users/@me", token.access_token);
+    const guilds = await discordGet<DiscordGuild[]>("/users/@me/guilds", token.access_token);
+    return { userId: user.id, username: user.username, guilds: guilds.filter(g => g.owner || (BigInt(g.permissions) & ADMIN) === ADMIN) };
+  });
   registerSuggestionRoutes(app,client,requireGuildAdmin);
   registerPollRoutes(app,client,requireGuildAdmin,req=>session(req)!.userId);
   registerLiveNotificationRoutes(app,client,requireGuildAdmin);
@@ -339,9 +335,7 @@ export function startDashboard(client: Client): void {
   app.get("/dashboard/invite-tracking", (req,res) => { if (!session(req)) return res.redirect("/login"); res.type("html").send(inviteTrackingPage()); });
   app.get("/dashboard/developer", (req,res) => { const s=session(req); if(!s)return res.redirect("/login"); if(!isGlobalAdmin(s.userId))return res.status(403).send("Global administrator access required."); res.type("html").send(developerPage()); });
   app.get("/dashboard/dev-logs", (req,res) => { const s=session(req); if(!s)return res.redirect("/login"); if(!isGlobalAdmin(s.userId))return res.status(403).send("Global administrator access required."); res.type("html").send(devLogsPage()); });
-  app.get("/login", (_req,res) => { const state=crypto.randomBytes(24).toString("hex"); const redirect=`${config.dashboard.publicUrl.replace(/\/$/,"")}/oauth/callback`; const url=new URL("https://discord.com/oauth2/authorize"); url.searchParams.set("client_id",config.discord.clientId); url.searchParams.set("response_type","code"); url.searchParams.set("redirect_uri",redirect); url.searchParams.set("scope","identify guilds"); url.searchParams.set("state",state); res.setHeader("Set-Cookie",`cerberus_oauth_state=${state}; HttpOnly; Secure; SameSite=Lax; Path=/`); res.redirect(url.toString()); });
-  app.get("/oauth/callback", async (req,res) => { try { const code=String(req.query.code??""); const expected=cookieValue(req,"cerberus_oauth_state"); if(!code||!expected||expected!==String(req.query.state??"")) return res.status(400).send("Invalid OAuth state."); const token=await discordToken(code); const user=await discordGet<{id:string;username:string}>("/users/@me",token.access_token); const guilds=await discordGet<DiscordGuild[]>("/users/@me/guilds",token.access_token); const sid=crypto.randomBytes(32).toString("hex"); sessions.set(sid,{userId:user.id,username:user.username,guilds:guilds.filter(g=>g.owner||(BigInt(g.permissions)&ADMIN)===ADMIN),expiresAt:Date.now()+8*60*60*1000}); res.setHeader("Set-Cookie",`cerberus_session=${sid}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=28800`); res.redirect("/dashboard"); } catch(e) { res.status(500).send("Discord login failed."); } });
-  app.post("/logout",(req,res)=>{const id=cookieValue(req,"cerberus_session");if(id)sessions.delete(id);res.setHeader("Set-Cookie","cerberus_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0");res.status(204).end();});
+
   app.get("/api/developer/dm-logs",requireGlobalAdmin,async(req,res)=>{try{const where:any={};const userId=String(req.query.userId??"").trim(),type=String(req.query.type??"").trim();if(userId)where.userId=userId;if(["incoming","reply","closed"].includes(type))where.type=type;const logs=await DeveloperDmLog.findAll({where,order:[["createdAt","DESC"]],limit:500});res.json({logs});}catch(e){res.status(500).json({error:"Failed to load developer DM logs."})}});
   app.get("/api/developer/dm-transcript/:userId",requireGlobalAdmin,async(req,res)=>{try{const userId=String(req.params.userId??"").trim();if(!/^\d+$/.test(userId))return res.status(400).json({error:"Invalid Discord user ID."});const logs=await DeveloperDmLog.findAll({where:{userId},order:[["createdAt","ASC"],["id","ASC"]]});const username=logs.find(l=>l.username)?.username??null;res.json({userId,username,logs});}catch(e){res.status(500).json({error:"Failed to load developer DM transcript."})}});
   app.get("/api/developer/dm-relay",requireGlobalAdmin,async(req,res)=>{const settings=await DeveloperDmSettings.findByPk(1);res.json({settings,guilds:[...client.guilds.cache.values()].map(g=>({id:g.id,name:g.name}))})});

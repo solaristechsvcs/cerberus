@@ -3,7 +3,7 @@ type Dialect = "postgres" | "mysql";
 type CerberusConfig = {
   discord: { token: string; clientId: string };
   database: { dialect: Dialect; host: string; port: number; name: string; user: string; password: string; ssl: boolean };
-  dashboard: { enabled: boolean; port: number; publicUrl: string; clientSecret: string; globalAdmins?: string[] };
+  dashboard: { enabled: boolean; port: number; publicUrl: string; clientSecret: string; trustProxy?: string | string[] | number | false; globalAdmins?: string[] };
   liveNotifications?: { twitchClientId?:string; twitchClientSecret?:string; youtubeApiKey?:string; youtubeDailySearchLimit?:number };
   logLevel: string;
 };
