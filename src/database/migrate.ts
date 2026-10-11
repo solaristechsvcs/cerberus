@@ -7,6 +7,7 @@ import "./models/SuggestionSettings";
 import "./models/SuggestionPanel";
 import "./models/Suggestion";
 import "./models/Poll";
+import "./models/LiveMonitor";
 
 async function main(): Promise<void> {
   await connectDatabase();

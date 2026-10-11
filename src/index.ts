@@ -47,6 +47,8 @@ import { SuggestionPanel } from "./database/models/SuggestionPanel";
 import "./database/models/SuggestionSettings";
 import "./database/models/Suggestion";
 import { handlePollButton, handlePollCommand, startPollExpiry } from "./commands/polls";
+import { startLiveNotifications } from "./services/liveNotifications";
+let liveNotifications:ReturnType<typeof startLiveNotifications>|undefined;
 let pollExpiry:ReturnType<typeof startPollExpiry>|undefined;
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessages], partials: [Partials.Channel] });
@@ -70,6 +72,7 @@ async function registerCommands(): Promise<void> {
 client.once(Events.ClientReady, async readyClient => {
   console.log(`Logged in as ${readyClient.user.tag}`);
   pollExpiry=startPollExpiry(client);
+  liveNotifications=startLiveNotifications(client);
   for(const guild of readyClient.guilds.cache.values())await primeInviteCache(guild).catch(()=>null);
   try {
     await registerCommands();
@@ -154,6 +157,7 @@ client.on(Events.InteractionCreate, async interaction => {
 async function shutdown(signal: string): Promise<void> {
   console.log(`Received ${signal}; shutting down.`);
   if(pollExpiry)clearInterval(pollExpiry);
+  if(liveNotifications)clearInterval(liveNotifications);
   client.destroy();
   process.exit(0);
 }
