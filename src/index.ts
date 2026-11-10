@@ -1,3 +1,4 @@
+import { startAutoLockdownRecovery } from "./services/autoRaidLockdown";
 import { Client, Events, GatewayIntentBits, Partials, REST, Routes } from "discord.js";
 import { config } from "./config";
 import { commandData } from "./commandData";
@@ -21,6 +22,7 @@ import "./database/models/ChangelogSettings";
 import "./database/models/ChangelogEntry";
 import "./database/models/AntiRaidSettings";
 import "./database/models/ChannelLockdown";
+import "./database/models/AutoRaidLockdown";
 import "./database/models/InviteTrackingSettings";
 import "./database/models/ReactionRole";
 import { handleModerationCommand } from "./commands/moderation";
@@ -51,6 +53,7 @@ import { handlePollButton, handlePollCommand, startPollExpiry } from "./commands
 import { startLiveNotifications } from "./services/liveNotifications";
 let liveNotifications:ReturnType<typeof startLiveNotifications>|undefined;
 let pollExpiry:ReturnType<typeof startPollExpiry>|undefined;
+let autoLockdownRecovery:NodeJS.Timeout|undefined;
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessages], partials: [Partials.Channel] });
 
@@ -158,6 +161,7 @@ client.on(Events.InteractionCreate, async interaction => {
 async function shutdown(signal: string): Promise<void> {
   console.log(`Received ${signal}; shutting down.`);
   if(pollExpiry)clearInterval(pollExpiry);
+  if(autoLockdownRecovery)clearInterval(autoLockdownRecovery);
   if(liveNotifications)clearInterval(liveNotifications);
   client.destroy();
   process.exit(0);
@@ -168,6 +172,7 @@ async function main(): Promise<void> {
   await runDatabaseMigrations();
   startDashboard(client);
   await client.login(config.discord.token);
+  autoLockdownRecovery=startAutoLockdownRecovery(client);
 }
 
 process.on("SIGINT", () => void shutdown("SIGINT"));
