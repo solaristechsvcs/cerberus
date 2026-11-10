@@ -40,6 +40,7 @@ import { handleAnnouncementCommand } from "./commands/announcements";
 import { handleDeveloperDm, handleDeveloperDmButton, handleDeveloperDmCommand, handleDeveloperDmModal } from "./commands/developerDm";
 import { handleWelcomeCommand, sendWelcome } from "./commands/welcome";
 import { handleChangelogCommand } from "./commands/changelog";
+import { handleLockdownCommand } from "./commands/lockdown";
 import { handleAntiRaidCommand, handleAntiRaidJoin } from "./commands/antiRaid";
 import { handleInviteCommand, handleInviteJoin, primeInviteCache, refreshInviteCache } from "./commands/invites";
 import { handleBuildCommand } from "./commands/builds";
@@ -142,6 +143,7 @@ client.on(Events.InteractionCreate, async interaction => {
     else if (interaction.commandName === "dmrelay" || interaction.commandName === "dr") await handleDeveloperDmCommand(interaction);
     else if (interaction.commandName === "welcome") await handleWelcomeCommand(interaction);
     else if (interaction.commandName === "changelog") await handleChangelogCommand(interaction);
+    else if (interaction.commandName === "lockdown") await handleLockdownCommand(interaction);
     else if (interaction.commandName === "antiraid") await handleAntiRaidCommand(interaction);
     else if (interaction.commandName === "invites") await handleInviteCommand(interaction);
     else if (interaction.commandName === "builds") await handleBuildCommand(interaction);
