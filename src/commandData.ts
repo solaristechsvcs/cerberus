@@ -1,3 +1,4 @@
+import { lockdownCommands } from "./commands/lockdown";
 import { moderationCommands } from "./commands/moderation";
 import { noteCommands } from "./commands/notes";
 import { codeCommands } from "./commands/codes";
@@ -16,4 +17,4 @@ import { reactionRoleCommands } from "./commands/reactionRoles";
 
 import { pollCommands } from "./commands/polls";
 
-export const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands, ...developerCommands, ...verificationCommands, ...announcementCommands, ...developerDmCommands, ...welcomeCommands, ...changelogCommands, ...antiRaidCommands, ...inviteCommands, ...buildCommands, ...nukaTraderCommands, ...reactionRoleCommands, ...pollCommands].map(command => command.toJSON());
+export const commandData = [...moderationCommands, ...noteCommands, ...codeCommands, ...ticketCommands, ...developerCommands, ...verificationCommands, ...announcementCommands, ...developerDmCommands, ...welcomeCommands, ...changelogCommands, ...antiRaidCommands, ...lockdownCommands, ...inviteCommands, ...buildCommands, ...nukaTraderCommands, ...reactionRoleCommands, ...pollCommands].map(command => command.toJSON());
