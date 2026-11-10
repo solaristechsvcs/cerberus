@@ -4,6 +4,8 @@ import { sequelize } from "./index";
 
 export async function runDatabaseMigrations(): Promise<void> {
   await sequelize.sync();
+  const antiRaidTable = await sequelize.getQueryInterface().describeTable("anti_raid_settings");
+  if (!antiRaidTable.autoLockdown) await sequelize.getQueryInterface().addColumn("anti_raid_settings","autoLockdown",{type:require("sequelize").DataTypes.BOOLEAN,allowNull:false,defaultValue:false});
   if (sequelize.getDialect() === "mysql") {
     const [columns] = await sequelize.query("SHOW COLUMNS FROM guild_settings LIKE 'eventLogChannels'", { type: QueryTypes.SELECT });
     if (!columns) {
