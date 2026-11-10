@@ -37,7 +37,8 @@ export function registerAuth(app: express.Express, options: {
   app.get("/login", async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     // Set host-only cookies only on the same origin used by Discord's callback.
-    // TLS may terminate at Cloudflare/Wisp while the trusted app-facing connection is HTTP.\n    // Compare the public hostname instead of req.protocol to avoid an HTTPS redirect loop.\n    // Keep the OAuth callback and secure cookies pinned to the configured HTTPS origin.\n    if (req.get("host")?.toLowerCase() !== publicUrl.host.toLowerCase()) return res.redirect(`${origin}/login`);
+    // The public callback origin is configured explicitly; never redirect /login to itself.
+    // Proxies may rewrite Host and terminate TLS before forwarding to Wisp.
     const state = crypto.randomBytes(32).toString("hex");
     await store.put(hash(state), "state", null, Date.now() + 10 * 60 * 1000);
     const url = new URL("https://discord.com/oauth2/authorize");
