@@ -76,7 +76,7 @@ async function update() {
     await command("git", ["fetch", "--quiet", "origin", branch]);
     const local = output("git", ["rev-parse", "HEAD"]);
     const remote = output("git", ["rev-parse", "FETCH_HEAD"]);
-    const dirty = output("git", ["status", "--porcelain", "--untracked-files=no"]);
+    const dirty = output("git", ["status", "--porcelain", "--untracked-files=no", "--", ".", ":(exclude)config.js"]);
     if (local === remote && !dirty) {
       if (!dependenciesHealthy() || !fs.existsSync(path.join(root, "dist/index.js"))) {
         await installAndBuild();
@@ -130,12 +130,12 @@ async function update() {
   } finally { checking = false; }
 }
 async function main() {
-  // Repair dependencies before starting the bot, not after it has connected.
-  if (!dependenciesHealthy() || !fs.existsSync(path.join(root, "dist/index.js"))) {
-    await installAndBuild();
-  }
+  // Fetch updated source before building; otherwise an old TypeScript error can prevent updates entirely.
   await update();
-  if (!bot) startBot();
+  if (!bot) {
+    if (!dependenciesHealthy() || !fs.existsSync(path.join(root, "dist/index.js"))) await installAndBuild();
+    startBot();
+  }
   setInterval(update, interval).unref();
 }
 process.on("SIGTERM", () => { stopping = true; if (bot) bot.kill("SIGTERM"); else process.exit(0); });
