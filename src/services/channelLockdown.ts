@@ -55,7 +55,8 @@ export async function setLockdown(guild:Guild,channelIds:string[],locked:boolean
      }
      for(const target of ids)if(needsDeny(channel,target))await applyDeny(channel,target);
      await guild.channels.fetch(id);
-     const refreshed=guild.channels.cache.get(id)!;
+     const refreshed=guild.channels.cache.get(id);
+     if(!refreshed||(refreshed.type!==ChannelType.GuildText&&refreshed.type!==ChannelType.GuildAnnouncement))throw new Error("Channel unavailable after permission update");
      const stillOpen=targets(guild,refreshed).filter(target=>needsDeny(refreshed,target));
      if(stillOpen.length)throw new Error("Discord did not apply the required send-message restrictions");
     }else{
