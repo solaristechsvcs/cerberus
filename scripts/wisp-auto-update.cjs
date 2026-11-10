@@ -15,7 +15,7 @@ const interval = Math.max(60, Number(process.env.CERBERUS_UPDATE_SECONDS) || 300
 let bot = null;
 let stopping = false;
 let checking = false;
-let lastCommit = null;
+
 
 function command(cmd, args) {
   return new Promise((resolve, reject) => {
@@ -28,6 +28,16 @@ function output(cmd, args) {
   const result = spawnSync(cmd, args, { cwd: root, encoding: "utf8", timeout: 30000 });
   if (result.status !== 0) throw new Error((result.stderr || result.error?.message || cmd + " failed").trim());
   return result.stdout.trim();
+}
+function dependenciesHealthy() {
+  // Catch partially installed discord.js before Discord's READY event.
+  return fs.existsSync(path.join(root, "node_modules/discord.js/src/structures/ClientUser.js"));
+}
+async function installAndBuild() {
+  console.log("[Cerberus updater] Installing dependencies from lockfile and building");
+  await command("npm", ["ci", "--include=dev"]);
+  if (!dependenciesHealthy()) throw new Error("discord.js installation is incomplete (ClientUser.js missing)");
+  await command("npm", ["run", "build"]);
 }
 function startBot() {
   if (stopping) return;
@@ -67,7 +77,13 @@ async function update() {
     const local = output("git", ["rev-parse", "HEAD"]);
     const remote = output("git", ["rev-parse", "FETCH_HEAD"]);
     const dirty = output("git", ["status", "--porcelain", "--untracked-files=no"]);
-    if (local === remote && !dirty) return;
+    if (local === remote && !dirty) {
+      if (!dependenciesHealthy() || !fs.existsSync(path.join(root, "dist/index.js"))) {
+        await installAndBuild();
+        if (!bot) startBot();
+      }
+      return;
+    }
     const ancestor = spawnSync("git", ["merge-base", "--is-ancestor", local, remote], { cwd: root });
     if (ancestor.status !== 0) {
       console.warn("[Cerberus updater] Branch has diverged; refusing to overwrite local commits.");
@@ -93,9 +109,7 @@ async function update() {
       }
     }
     console.log("[Cerberus updater] GitHub files updated; local config.js preserved.");
-    await command("npm", ["ci", "--include=dev"]);
-    await command("npm", ["run", "build"]);
-    lastCommit = remote;
+    await installAndBuild();
     console.log("[Cerberus updater] Build successful. Restarting bot.");
     // Prevent the exit listener from terminating the supervisor during intentional restart.
     const old = bot;
@@ -116,14 +130,13 @@ async function update() {
   } finally { checking = false; }
 }
 async function main() {
-  if (!fs.existsSync(path.join(root, "dist/index.js"))) {
-    console.log("[Cerberus updater] First build");
-    await command("npm", ["install", "--include=dev"]);
-    await command("npm", ["run", "build"]);
+  // Repair dependencies before starting the bot, not after it has connected.
+  if (!dependenciesHealthy() || !fs.existsSync(path.join(root, "dist/index.js"))) {
+    await installAndBuild();
   }
-  startBot();
-  setInterval(update, interval).unref();
   await update();
+  if (!bot) startBot();
+  setInterval(update, interval).unref();
 }
 process.on("SIGTERM", () => { stopping = true; if (bot) bot.kill("SIGTERM"); else process.exit(0); });
 process.on("SIGINT", () => { stopping = true; if (bot) bot.kill("SIGINT"); else process.exit(0); });
