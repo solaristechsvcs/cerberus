@@ -1,21 +1,33 @@
-import { ChannelType, Guild, PermissionFlagsBits } from "discord.js";
+import { ChannelType, Guild, OverwriteType, PermissionFlagsBits } from "discord.js";
 import { ChannelLockdown } from "../database/models/ChannelLockdown";
 
 const flags = ["SendMessages","SendMessagesInThreads","CreatePublicThreads","CreatePrivateThreads"] as const;
 type Flag = typeof flags[number];
-type Snapshot = {id:string; values:Record<Flag,boolean|null>};
+type Snapshot = {id:string; values:Record<Flag,boolean|null>; existed?:boolean; type?:number};
 const busy = new Set<string>();
-function targets(guild:Guild) {
- return [guild.roles.everyone,...guild.roles.cache.filter(r=>r.id!==guild.id&&!r.permissions.has(PermissionFlagsBits.Administrator)).values()];
-}
 function textChannels(guild:Guild) {
  return [...guild.channels.cache.values()].filter(ch=>ch.type===ChannelType.GuildText||ch.type===ChannelType.GuildAnnouncement);
 }
-function snapshot(channel:any,roleId:string):Snapshot {
- const overwrite=channel.permissionOverwrites.cache.get(roleId);
+function targets(guild:Guild,channel:ReturnType<typeof textChannels>[number]) {
+ const ids = new Set<string>([guild.id,...guild.roles.cache.filter(r=>!r.permissions.has(PermissionFlagsBits.Administrator)).keys()]);
+ // Member-specific channel overwrites can override role restrictions.
+ for(const overwrite of channel.permissionOverwrites.cache.values()) {
+  if(overwrite.type===OverwriteType.Member)ids.add(overwrite.id);
+ }
+ return [...ids];
+}
+function snapshot(channel:ReturnType<typeof textChannels>[number],id:string):Snapshot {
+ const overwrite=channel.permissionOverwrites.cache.get(id);
  const values={} as Snapshot["values"];
  for(const flag of flags){const bit=PermissionFlagsBits[flag];values[flag]=overwrite?.allow.has(bit)?true:overwrite?.deny.has(bit)?false:null;}
- return {id:roleId,values};
+ return {id,values,existed:!!overwrite,type:overwrite?.type};
+}
+function needsDeny(channel:ReturnType<typeof textChannels>[number],id:string) {
+ const overwrite=channel.permissionOverwrites.cache.get(id);
+ return flags.some(flag=>!overwrite?.deny.has(PermissionFlagsBits[flag]));
+}
+async function applyDeny(channel:ReturnType<typeof textChannels>[number],id:string) {
+ await channel.permissionOverwrites.edit(id,{SendMessages:false,SendMessagesInThreads:false,CreatePublicThreads:false,CreatePrivateThreads:false},{reason:"Cerberus emergency raid lockdown"});
 }
 export async function lockdownStatus(guild:Guild){
  const rows=await ChannelLockdown.findAll({where:{guildId:guild.id}});
@@ -33,23 +45,36 @@ export async function setLockdown(guild:Guild,channelIds:string[],locked:boolean
    try{
     const row=await ChannelLockdown.findByPk(id);
     if(locked){
-     if(row){results.push({channelId:id,ok:true});continue;}
-     const backups=targets(guild).map(role=>snapshot(channel,role.id));
-     // Save first so a partial failure can be reversed by unlocking.
-     await ChannelLockdown.create({channelId:id,guildId:guild.id,backups});
-     for(const role of targets(guild)){
-      await channel.permissionOverwrites.edit(role,{SendMessages:false,SendMessagesInThreads:false,CreatePublicThreads:false,CreatePrivateThreads:false},{reason:"Cerberus emergency raid lockdown"});
+     // Reconcile incomplete prior attempts rather than assuming a DB row means locked.
+     const ids=targets(guild,channel);
+     if(!row)await ChannelLockdown.create({channelId:id,guildId:guild.id,backups:ids.map(target=>snapshot(channel,target))});
+     else {
+      const saved=row.backups as Snapshot[];
+      const additions=ids.filter(target=>!saved.some(entry=>entry.id===target)).map(target=>snapshot(channel,target));
+      if(additions.length){row.backups=[...saved,...additions];await row.save();}
      }
+     for(const target of ids)if(needsDeny(channel,target))await applyDeny(channel,target);
+     await guild.channels.fetch(id);
+     const refreshed=guild.channels.cache.get(id)!;
+     const stillOpen=targets(guild,refreshed).filter(target=>needsDeny(refreshed,target));
+     if(stillOpen.length)throw new Error("Discord did not apply the required send-message restrictions");
     }else{
      if(!row){results.push({channelId:id,ok:true});continue;}
      for(const backup of row.backups as Snapshot[]){
-      const role=guild.roles.cache.get(backup.id);if(!role)continue;
-      await channel.permissionOverwrites.edit(role,backup.values,{reason:"Cerberus emergency lockdown released"});
+      const exists=backup.id===guild.id||guild.roles.cache.has(backup.id)||channel.permissionOverwrites.cache.has(backup.id);
+      if(!exists)continue;
+      await channel.permissionOverwrites.edit(backup.id,backup.values,{reason:"Cerberus emergency lockdown released"});
+      // Remove an overwrite that Cerberus created only if it has no remaining permissions.
+      if(backup.existed===false){
+       const current=channel.permissionOverwrites.cache.get(backup.id);
+       if(current&&current.allow.bitfield===0n&&current.deny.bitfield===0n)
+        await channel.permissionOverwrites.delete(backup.id,"Cerberus lockdown permission cleanup");
+      }
      }
      await row.destroy();
     }
     results.push({channelId:id,ok:true});
-   }catch(error){results.push({channelId:id,ok:false,error:error instanceof Error?error.message:"Discord permission update failed"});}
+   }catch(error){const detail=error instanceof Error?error.message:"Discord permission update failed";console.error("[Cerberus lockdown]",guild.id,id,detail);results.push({channelId:id,ok:false,error:detail});}
   }
   return results;
  }finally{busy.delete(guild.id);}
