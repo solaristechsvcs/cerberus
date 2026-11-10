@@ -20,6 +20,7 @@ import "./database/models/WelcomeSettings";
 import "./database/models/ChangelogSettings";
 import "./database/models/ChangelogEntry";
 import "./database/models/AntiRaidSettings";
+import "./database/models/ChannelLockdown";
 import "./database/models/InviteTrackingSettings";
 import "./database/models/ReactionRole";
 import { handleModerationCommand } from "./commands/moderation";
