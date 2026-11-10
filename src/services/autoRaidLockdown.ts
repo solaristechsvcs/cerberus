@@ -5,7 +5,7 @@ import { lockdownStatus, setLockdown } from "./channelLockdown";
 
 export async function startAutomaticLockdown(guild:Guild,unlockAt:Date):Promise<void>{
  const existing=await AutoRaidLockdown.findByPk(guild.id);
- if(existing){existing.unlockAt=unlockAt;await existing.save();return;}
+ if(existing){existing.unlockAt=unlockAt;await existing.save();const results=await setLockdown(guild,existing.channelIds,true);const failed=results.filter(r=>!r.ok);if(failed.length)console.error("[Cerberus] Automatic lockdown retry failed",guild.id,failed);return;}
  const status=await lockdownStatus(guild);
  const ids=status.channels.filter(ch=>!ch.locked).map(ch=>ch.id);
  // Create a durable record first; a failed channel remains safely retryable on unlock.
