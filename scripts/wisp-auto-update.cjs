@@ -3,7 +3,7 @@
 /**
  * Wisp supervisor: starts Cerberus and checks for fast-forward updates.
  * Requires a Git checkout with read access to origin/main.
- * Never resets local files or force-overwrites configuration.
+ * GitHub is authoritative for tracked source files; local config.js is preserved.
  */
 const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
@@ -61,43 +61,39 @@ async function update() {
       console.warn("[Cerberus updater] No .git directory. Automatic updates require a Git checkout.");
       return;
     }
-    // Only config.js may be locally edited. Never overwrite other tracked changes.
-    const dirty = output("git", ["status", "--porcelain", "--untracked-files=no"]);
-    const changed = dirty.split("\\n").filter(Boolean).map(line => line.slice(3));
-    const unexpected = changed.filter(file => file !== "config.js");
-    if (unexpected.length) {
-      console.warn("[Cerberus updater] Other tracked files have local edits; skipping update:", unexpected.join(", "));
-      return;
-    }
+    // GitHub is authoritative for tracked application files. config.js is the
+    // only tracked local file we preserve; all other tracked edits are replaced.
     await command("git", ["fetch", "--quiet", "origin", branch]);
     const local = output("git", ["rev-parse", "HEAD"]);
     const remote = output("git", ["rev-parse", "FETCH_HEAD"]);
-    if (local === remote) return;
+    const dirty = output("git", ["status", "--porcelain", "--untracked-files=no"]);
+    if (local === remote && !dirty) return;
     const ancestor = spawnSync("git", ["merge-base", "--is-ancestor", local, remote], { cwd: root });
     if (ancestor.status !== 0) {
       console.warn("[Cerberus updater] Branch has diverged; refusing to overwrite local commits.");
       return;
     }
-    console.log("[Cerberus updater] New commit available:", remote.slice(0, 12));
-    // Back up production config outside the checkout before a fast-forward merge.
-    // The backup survives a failed merge; local credentials are never fetched from GitHub.
+    console.log("[Cerberus updater] Syncing tracked application files to:", remote.slice(0, 12));
+    // Preserve local production credentials outside the repository.
     const configPath = path.join(root, "config.js");
     const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), "cerberus-config-"));
     const backupPath = path.join(backupDir, "config.js");
     const hadConfig = fs.existsSync(configPath);
     if (hadConfig) fs.copyFileSync(configPath, backupPath);
     try {
-      if (changed.includes("config.js")) {
-        await command("git", ["restore", "--staged", "--worktree", "--", "config.js"]);
-      }
-      await command("git", ["merge", "--ff-only", remote]);
+      // Explicitly approved: discard tracked local edits except config.js.
+      // Untracked files are left untouched.
+      await command("git", ["reset", "--hard", remote]);
     } finally {
-      if (hadConfig) fs.copyFileSync(backupPath, configPath);
-      else if (fs.existsSync(configPath)) fs.rmSync(configPath);
-      fs.rmSync(backupDir, { recursive: true, force: true });
+      try {
+        if (hadConfig) fs.copyFileSync(backupPath, configPath);
+        else if (fs.existsSync(configPath)) fs.rmSync(configPath);
+      } finally {
+        fs.rmSync(backupDir, { recursive: true, force: true });
+      }
     }
     console.log("[Cerberus updater] GitHub files updated; local config.js preserved.");
-    await command("npm", ["install", "--include=dev"]);
+    await command("npm", ["ci", "--include=dev"]);
     await command("npm", ["run", "build"]);
     lastCommit = remote;
     console.log("[Cerberus updater] Build successful. Restarting bot.");
