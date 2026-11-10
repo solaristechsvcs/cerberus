@@ -64,7 +64,7 @@ export function registerAuth(app: express.Express, options: {
       const old = cookieValue(req, "cerberus_session");
       if (old) await store.remove(hash(old));
       res.cookie("cerberus_session", id, { ...cookie, maxAge: 8 * 60 * 60 * 1000 });
-      res.redirect("/dashboard");
+      res.redirect("/dashboard/select-server");
     } catch { res.status(500).send("Discord login failed. Please sign in again."); }
   });
   app.post("/logout", async (req, res) => {
